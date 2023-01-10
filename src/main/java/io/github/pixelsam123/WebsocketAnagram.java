@@ -5,6 +5,7 @@ import io.quarkus.logging.Log;
 import javax.enterprise.context.ApplicationScoped;
 import javax.websocket.*;
 import javax.websocket.server.ServerEndpoint;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,7 +71,12 @@ public class WebsocketAnagram {
                 "Round started with time per round of " + timePerRound + " seconds!"
             );
 
-            return;
+            AsyncUtils.setTimeout(() -> {
+                broadcast(
+                    "FinishedRoundInfo",
+                    "placeholder"
+                );
+            }, Duration.ofSeconds(timePerRound));
         }
 
         broadcast("ChatMessage", players.get(session).name + ": " + message);
