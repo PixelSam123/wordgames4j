@@ -2,28 +2,31 @@ package io.github.pixelsam123;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.pixelsam123.server.message.IServerMessage;
 
 import javax.websocket.EncodeException;
 import javax.websocket.Encoder;
 import javax.websocket.EndpointConfig;
-import java.util.Map;
 
-public class JsonEncoder implements Encoder.Text<Map<String, String>> {
+public class JsonEncoder implements Encoder.Text<IServerMessage> {
 
-    private final ObjectMapper mapper;
+    private final ObjectMapper jsonMapper;
 
     public JsonEncoder() {
-        mapper = new ObjectMapper();
-        mapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+        jsonMapper = new ObjectMapper();
     }
 
     @Override
-    public String encode(Map<String, String> object) throws EncodeException {
+    public String encode(IServerMessage serverMessage) throws EncodeException {
+        ObjectNode message = jsonMapper.createObjectNode();
+        message.put("type", serverMessage.getType());
+        message.putPOJO("content", serverMessage.getContent());
+
         try {
-            return mapper.writer().writeValueAsString(object);
+            return jsonMapper.writer().writeValueAsString(serverMessage);
         } catch (JsonProcessingException e) {
-            throw new EncodeException(object, e.getMessage(), e.getCause());
+            throw new EncodeException(serverMessage, e.getMessage(), e.getCause());
         }
     }
 

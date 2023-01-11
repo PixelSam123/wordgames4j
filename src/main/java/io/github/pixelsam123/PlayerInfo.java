@@ -2,7 +2,7 @@ package io.github.pixelsam123;
 
 public class PlayerInfo {
 
-    public String name;
+    public final String name;
     public int points;
 
     public PlayerInfo(String name) {

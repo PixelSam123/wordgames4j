@@ -1,5 +1,7 @@
 package io.github.pixelsam123;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class WebsocketAnagramTest {
 
     private static final LinkedBlockingDeque<String> messages = new LinkedBlockingDeque<>();
+    private static final ObjectMapper jsonMapper = new ObjectMapper();
 
     @TestHTTPResource("/ws/anagram")
     public URI uri;
@@ -27,24 +30,47 @@ public class WebsocketAnagramTest {
         try (Session session = ContainerProvider
             .getWebSocketContainer()
             .connectToServer(Client.class, uri)) {
-            assertEquals("""
-                {"type":"ChatMessage","content":"Please enter name in chat."}
-                """.trim(), messages.poll(10, TimeUnit.SECONDS));
+            ObjectNode asksForNameEntry = jsonMapper.createObjectNode();
+            asksForNameEntry.put("type", "ChatMessage");
+            asksForNameEntry.put("content", "Please enter name in chat.");
+
+            assertEquals(
+                asksForNameEntry,
+                jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
+            );
+
+            ObjectNode announcesJoiningPlayer = jsonMapper.createObjectNode();
+            announcesJoiningPlayer.put("type", "ChatMessage");
+            announcesJoiningPlayer.put("content", "PlayerOne joined!");
 
             session.getAsyncRemote().sendText("PlayerOne");
-            assertEquals("""
-                {"type":"ChatMessage","content":"PlayerOne joined!"}
-                """.trim(), messages.poll(10, TimeUnit.SECONDS));
+            assertEquals(
+                announcesJoiningPlayer,
+                jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
+            );
+
+            ObjectNode announcesChat = jsonMapper.createObjectNode();
+            announcesChat.put("type", "ChatMessage");
+            announcesChat.put("content", "PlayerOne: Heyy, I'm chatting!");
 
             session.getAsyncRemote().sendText("Heyy, I'm chatting!");
-            assertEquals("""
-                {"type":"ChatMessage","content":"PlayerOne: Heyy, I'm chatting!"}
-                """.trim(), messages.poll(10, TimeUnit.SECONDS));
+            assertEquals(
+                announcesChat,
+                jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
+            );
 
-            session.getAsyncRemote().sendText("/start 10");
-            assertEquals("""
-                {"type":"ChatMessage","content":"Round started with time per round of 10 seconds!"}
-                """.trim(), messages.poll(10, TimeUnit.SECONDS));
+            ObjectNode announcesRoundStart = jsonMapper.createObjectNode();
+            announcesRoundStart.put("type", "ChatMessage");
+            announcesRoundStart.put(
+                "content",
+                "2 rounds started with time per round of 5 seconds!"
+            );
+
+            session.getAsyncRemote().sendText("/start 2 5");
+            assertEquals(
+                announcesRoundStart,
+                jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
+            );
         }
     }
 
