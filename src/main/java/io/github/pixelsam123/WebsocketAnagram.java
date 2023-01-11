@@ -9,7 +9,9 @@ import javax.websocket.*;
 import javax.websocket.server.ServerEndpoint;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -21,7 +23,9 @@ public class WebsocketAnagram {
 
     private final Map<Session, PlayerInfo> players = new ConcurrentHashMap<>();
     private Cancellable roundTimeoutHandle = null;
+    private Cancellable roundEndTimeoutHandle = null;
     private String currentWord = null;
+    private final Set<Session> currentRoundAnswerers = new HashSet<>();
 
     @OnOpen
     public void onOpen(Session session) {
@@ -78,6 +82,8 @@ public class WebsocketAnagram {
             for (long i = 0; i <= roundCount; i++) {
                 long finalI = i;
                 roundTimeoutHandle = setTimeout(() -> {
+                    currentRoundAnswerers.clear();
+
                     if (finalI == roundCount) {
                         broadcast(new FinishedGame());
                         broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + players
@@ -97,18 +103,10 @@ public class WebsocketAnagram {
 
                     broadcast(new OngoingRoundInfo("palcehlod", roundFinishTime.toString()));
 
-                    setTimeout(() -> {
-                        String playerPointsDisplay = players
-                            .values()
-                            .stream()
-                            .map(playerInfo -> playerInfo.name + ": " + playerInfo.points)
-                            .collect(Collectors.joining("\n"));
-
-                        broadcast(new ChatMessage("Points:\n" + playerPointsDisplay));
-                        broadcast(new FinishedRoundInfo(currentWord, toNextRoundTime.toString()));
-
-                        currentWord = null;
-                    }, Duration.ofSeconds(timePerRound));
+                    roundEndTimeoutHandle = setTimeout(
+                        () -> endCurrentRound(toNextRoundTime),
+                        Duration.ofSeconds(timePerRound)
+                    );
                 }, Duration.ofSeconds((timePerRound + revealAnswerTime) * i));
             }
 
@@ -116,13 +114,38 @@ public class WebsocketAnagram {
         }
 
         if (message.equals(currentWord)) {
+            if (currentRoundAnswerers.contains(session)) {
+                send(session, new ChatMessage("You already answered..."));
+
+                return;
+            }
+
             players.get(session).points += 1;
+            currentRoundAnswerers.add(session);
             broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
+
+            if (currentRoundAnswerers.size() == players.size()) {
+                roundEndTimeoutHandle.cancel();
+                endCurrentRound(OffsetDateTime.now().plusSeconds(5L));
+            }
 
             return;
         }
 
         broadcast(new ChatMessage(players.get(session).name + ": " + message));
+    }
+
+    private void endCurrentRound(OffsetDateTime toNextRoundTime) {
+        String playerPointsDisplay = players
+            .values()
+            .stream()
+            .map(playerInfo -> playerInfo.name + ": " + playerInfo.points)
+            .collect(Collectors.joining("\n"));
+
+        broadcast(new ChatMessage("Points:\n" + playerPointsDisplay));
+        broadcast(new FinishedRoundInfo(currentWord, toNextRoundTime.toString()));
+
+        currentWord = null;
     }
 
     private void send(Session session, IServerMessage message) {
