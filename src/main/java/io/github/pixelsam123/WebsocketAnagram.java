@@ -1,10 +1,8 @@
 package io.github.pixelsam123;
 
-import io.github.pixelsam123.server.message.ChatMessage;
-import io.github.pixelsam123.server.message.FinishedRoundInfo;
-import io.github.pixelsam123.server.message.IServerMessage;
-import io.github.pixelsam123.server.message.OngoingRoundInfo;
+import io.github.pixelsam123.server.message.*;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.subscription.Cancellable;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.websocket.*;
@@ -13,6 +11,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import static io.github.pixelsam123.AsyncUtils.setTimeout;
 
@@ -21,6 +20,8 @@ import static io.github.pixelsam123.AsyncUtils.setTimeout;
 public class WebsocketAnagram {
 
     private final Map<Session, PlayerInfo> players = new ConcurrentHashMap<>();
+    private Cancellable roundTimeoutHandle = null;
+    private String currentWord = null;
 
     @OnOpen
     public void onOpen(Session session) {
@@ -64,7 +65,7 @@ public class WebsocketAnagram {
             return;
         }
 
-        if (message.matches("/start \\d+ \\d+")) {
+        if (roundTimeoutHandle == null && message.matches("/start \\d+ \\d+")) {
             String[] command = message.split(" ");
             int roundCount = Integer.parseInt(command[1]);
             int timePerRound = Integer.parseInt(command[2]);
@@ -74,8 +75,22 @@ public class WebsocketAnagram {
                 roundCount + " rounds started with time per round of " + timePerRound + " seconds!"
             ));
 
-            for (long i = 0; i < roundCount; i++) {
-                setTimeout(() -> {
+            for (long i = 0; i <= roundCount; i++) {
+                long finalI = i;
+                roundTimeoutHandle = setTimeout(() -> {
+                    if (finalI == roundCount) {
+                        broadcast(new FinishedGame());
+                        broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + players
+                            .values()
+                            .stream()
+                            .map(playerInfo -> playerInfo.name + ": " + playerInfo.points)
+                            .collect(Collectors.joining("\n"))));
+
+                        return;
+                    }
+
+                    currentWord = "placehold";
+
                     OffsetDateTime roundFinishTime = OffsetDateTime.now().plusSeconds(timePerRound);
                     OffsetDateTime toNextRoundTime = roundFinishTime
                         .plusSeconds(revealAnswerTime);
@@ -83,10 +98,26 @@ public class WebsocketAnagram {
                     broadcast(new OngoingRoundInfo("palcehlod", roundFinishTime.toString()));
 
                     setTimeout(() -> {
-                        broadcast(new FinishedRoundInfo("placehold", toNextRoundTime.toString()));
+                        String playerPointsDisplay = players
+                            .values()
+                            .stream()
+                            .map(playerInfo -> playerInfo.name + ": " + playerInfo.points)
+                            .collect(Collectors.joining("\n"));
+
+                        broadcast(new ChatMessage("Points:\n" + playerPointsDisplay));
+                        broadcast(new FinishedRoundInfo(currentWord, toNextRoundTime.toString()));
+
+                        currentWord = null;
                     }, Duration.ofSeconds(timePerRound));
                 }, Duration.ofSeconds((timePerRound + revealAnswerTime) * i));
             }
+
+            return;
+        }
+
+        if (message.equals(currentWord)) {
+            players.get(session).points += 1;
+            broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
 
             return;
         }
