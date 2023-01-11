@@ -10,11 +10,13 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static io.github.pixelsam123.AsyncUtils.setTimeout;
+
 @ServerEndpoint(value = "/ws/anagram", encoders = JsonEncoder.class)
 @ApplicationScoped
 public class WebsocketAnagram {
 
-    Map<Session, PlayerInfo> players = new ConcurrentHashMap<>();
+    private final Map<Session, PlayerInfo> players = new ConcurrentHashMap<>();
 
     @OnOpen
     public void onOpen(Session session) {
@@ -58,25 +60,35 @@ public class WebsocketAnagram {
             return;
         }
 
-        if (message.matches("/start \\d+")) {
-            int timePerRound = Integer.parseInt(message.split(" ")[1]);
+        if (message.matches("/start \\d+ \\d+")) {
+            String[] command = message.split(" ");
+            int roundCount = Integer.parseInt(command[1]);
+            int timePerRound = Integer.parseInt(command[2]);
+            int revealAnswerTime = 5;
 
-            broadcast(
-                "OngoingRoundInfo",
-                "{word_to_guess:\"plchold\",round_finish_time:\""
-                    + OffsetDateTime.now().plusSeconds(timePerRound) + "\"}"
-            );
             broadcast(
                 "ChatMessage",
-                "Round started with time per round of " + timePerRound + " seconds!"
+                roundCount + " rounds started with time per round of " + timePerRound + " seconds!"
             );
 
-            AsyncUtils.setTimeout(() -> {
-                broadcast(
-                    "FinishedRoundInfo",
-                    "placeholder"
-                );
-            }, Duration.ofSeconds(timePerRound));
+            for (long i = 0; i < roundCount; i++) {
+                setTimeout(() -> {
+                    broadcast(
+                        "OngoingRoundInfo",
+                        "{word_to_guess:\"plchold\",round_finish_time:\""
+                            + OffsetDateTime.now().plusSeconds(timePerRound) + "\"}"
+                    );
+
+                    setTimeout(() -> {
+                        broadcast(
+                            "FinishedRoundInfo",
+                            "placeholder"
+                        );
+                    }, Duration.ofSeconds(timePerRound));
+                }, Duration.ofSeconds((timePerRound + revealAnswerTime) * i));
+            }
+
+            return;
         }
 
         broadcast("ChatMessage", players.get(session).name + ": " + message);
