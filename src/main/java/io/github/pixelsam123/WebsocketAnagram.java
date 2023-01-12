@@ -3,17 +3,17 @@ package io.github.pixelsam123;
 import io.github.pixelsam123.server.message.*;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.subscription.Cancellable;
+import io.vertx.core.impl.ConcurrentHashSet;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.websocket.*;
 import javax.websocket.server.ServerEndpoint;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static io.github.pixelsam123.AsyncUtils.setTimeout;
@@ -26,10 +26,16 @@ public class WebsocketAnagram {
 
     private Optional<AnagramConfig> gameConfig = Optional.empty();
 
-    private int roundsLeft = 0;
+    private Set<String> wordsForRound = Set.of();
     private Optional<String> currentWord = Optional.empty();
     private Optional<Cancellable> roundEndTimeoutHandle = Optional.empty();
-    private final Set<Session> currentRoundAnswerers = new HashSet<>();
+    private final Set<Session> currentRoundAnswerers = new ConcurrentHashSet<>();
+
+    private final RandomWordService randomWordService;
+
+    public WebsocketAnagram(@RestClient RandomWordService randomWordService) {
+        this.randomWordService = randomWordService;
+    }
 
     @OnOpen
     public void onOpen(Session session) {
@@ -40,9 +46,9 @@ public class WebsocketAnagram {
 
     @OnClose
     public void onClose(Session session) {
-        if (players.containsKey(session)) {
-            players.remove(session);
-            broadcast(new ChatMessage(players.get(session).name + " left!"));
+        PlayerInfo leavingPlayer = players.remove(session);
+        if (leavingPlayer != null) {
+            broadcast(new ChatMessage(leavingPlayer.name + " left!"));
         }
     }
 
@@ -56,82 +62,120 @@ public class WebsocketAnagram {
         PlayerInfo player = players.get(session);
 
         if (player == null) {
-            if (players
-                .values()
-                .stream()
-                .map(existingPlayer -> existingPlayer.name)
-                .toList()
-                .contains(message)) {
-                send(session, new ChatMessage("Name " + message + " is already in room!"));
-
-                return;
-            }
-
-            players.put(session, new PlayerInfo(message));
-            broadcast(new ChatMessage(message + " joined!"));
-
+            handleNameEntry(session, message);
             return;
         }
-
         if (roundEndTimeoutHandle.isEmpty() && message.matches("/start \\d+ \\d+")) {
-            String[] command = message.split(" ");
-            int roundCount = Integer.parseInt(command[1]);
-            int timePerRound = Integer.parseInt(command[2]);
-
-            broadcast(new ChatMessage(
-                roundCount + " rounds started with time per round of " + timePerRound + " seconds!"
-            ));
-
-            gameConfig = Optional.of(new AnagramConfig(timePerRound, 5));
-            roundsLeft = roundCount;
-            startRound();
-
+            handleGameStartCommand(message);
             return;
         }
-
         if (currentWord.isPresent() && message.equals(currentWord.get())) {
-            if (currentRoundAnswerers.contains(session)) {
-                send(session, new ChatMessage("You already answered..."));
-
-                return;
-            }
-
-            players.get(session).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
-            currentRoundAnswerers.add(session);
-            broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
-
-            if (roundEndTimeoutHandle.isPresent()
-                && currentRoundAnswerers.size() == players.size()) {
-                roundEndTimeoutHandle.get().cancel();
-                endCurrentRound();
-            }
-
+            handleSuccessfulAnswer(session);
             return;
         }
 
         broadcast(new ChatMessage(players.get(session).name + ": " + message));
     }
 
+    private void handleNameEntry(Session session, String name) {
+        if (players
+            .values()
+            .stream()
+            .map(existingPlayer -> existingPlayer.name)
+            .toList()
+            .contains(name)) {
+            send(session, new ChatMessage("Name " + name + " is already in room!"));
+
+            return;
+        }
+
+        players.put(session, new PlayerInfo(name));
+        broadcast(new ChatMessage(name + " joined!"));
+    }
+
+    private void handleGameStartCommand(String command) {
+        String[] commandParts = command.split(" ");
+        int roundCount = Integer.parseInt(commandParts[1]);
+        int timePerRound = Integer.parseInt(commandParts[2]);
+
+        randomWordService.getWordsOfLength(roundCount, 5).subscribe().with(
+            words -> {
+                broadcast(new ChatMessage(
+                    roundCount + " rounds started with time per round of " + timePerRound
+                        + " seconds!"
+                ));
+
+                gameConfig = Optional.of(new AnagramConfig(timePerRound, 5));
+
+                Set<String> wordsForRound = new ConcurrentHashSet<>();
+                wordsForRound.addAll(words);
+                this.wordsForRound = wordsForRound;
+
+                startRound();
+            },
+            err -> broadcast(new ChatMessage("FAILED to fetch words. Cannot start game."))
+        );
+    }
+
+    private void handleSuccessfulAnswer(Session session) {
+        if (currentRoundAnswerers.contains(session)) {
+            send(session, new ChatMessage("You already answered..."));
+
+            return;
+        }
+
+        players.get(session).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
+        currentRoundAnswerers.add(session);
+        broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
+
+        if (roundEndTimeoutHandle.isPresent() && currentRoundAnswerers.size() == players.size()) {
+            roundEndTimeoutHandle.get().cancel();
+            endCurrentRound();
+        }
+    }
+
     private void startRound() {
         if (gameConfig.isEmpty()) {
-            broadcast(new ChatMessage("CANNOT start round becuse configuration is empty!"));
+            broadcast(new ChatMessage("CANNOT start round because configuration is empty!"));
             return;
         }
         AnagramConfig config = gameConfig.get();
 
         currentRoundAnswerers.clear();
 
-        if (roundsLeft == 0) {
+        if (wordsForRound.size() == 0) {
             broadcast(new FinishedGame());
             broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + playerToPointsTable()));
+            roundEndTimeoutHandle = Optional.empty();
 
             return;
         }
 
-        currentWord = Optional.of("placehold");
+        int randomWordIndex = ThreadLocalRandom.current().nextInt(0, wordsForRound.size());
+        currentWord = wordsForRound.stream().skip(randomWordIndex).findFirst();
+
+        if (currentWord.isEmpty()) {
+            broadcast(new ChatMessage(
+                "NOT SUPPOSED TO HAPPEN: Random word is empty. Skipping round."
+            ));
+            endCurrentRound();
+
+            return;
+        }
+
+        List<Character> shuffledChars = new ArrayList<>();
+        for (char character : currentWord.get().toCharArray()) {
+            shuffledChars.add(character);
+        }
+        Collections.shuffle(shuffledChars);
+
+        String shuffledWord = shuffledChars
+            .stream()
+            .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
+            .toString();
 
         OffsetDateTime roundFinishTime = OffsetDateTime.now().plusSeconds(config.timePerRound);
-        broadcast(new OngoingRoundInfo("palcehlod", roundFinishTime.toString()));
+        broadcast(new OngoingRoundInfo(shuffledWord, roundFinishTime.toString()));
 
         roundEndTimeoutHandle = Optional.of(setTimeout(
             this::endCurrentRound,
@@ -141,34 +185,34 @@ public class WebsocketAnagram {
 
     private void endCurrentRound() {
         if (gameConfig.isEmpty()) {
-            broadcast(new ChatMessage("CANNOT start round because configuration is empty!"));
-            return;
-        }
-        if (currentWord.isEmpty()) {
-            broadcast(new ChatMessage("CANNOT end round because current word is empty!"));
+            broadcast(new ChatMessage("CANNOT end round because configuration is empty!"));
             return;
         }
         AnagramConfig config = gameConfig.get();
-        String word = currentWord.get();
 
         OffsetDateTime nextRoundStartTime = OffsetDateTime
             .now()
             .plusSeconds(config.timePerRoundEnding);
 
         broadcast(new ChatMessage("Points:\n" + playerToPointsTable()));
-        broadcast(new FinishedRoundInfo(word, nextRoundStartTime.toString()));
+        currentWord.ifPresentOrElse(
+            word -> {
+                broadcast(new FinishedRoundInfo(word, nextRoundStartTime.toString()));
+                wordsForRound.remove(word);
+            },
+            () -> broadcast(new FinishedRoundInfo("INVALID_STATE", nextRoundStartTime.toString()))
+        );
 
         currentWord = Optional.empty();
-        roundsLeft--;
 
-        startRound();
+        setTimeout(this::startRound, Duration.ofSeconds(config.timePerRoundEnding));
     }
 
     private String playerToPointsTable() {
         return players
             .values()
             .stream()
-            .map(player -> player.name + ": " + player.points)
+            .map(player -> player.name + " -> " + player.points)
             .collect(Collectors.joining());
     }
 

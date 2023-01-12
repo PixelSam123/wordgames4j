@@ -10,4 +10,9 @@ public class PlayerInfo {
         this.points = 0;
     }
 
+    @Override
+    public String toString() {
+        return "PlayerInfo{" + "name='" + name + '\'' + ", points=" + points + '}';
+    }
+
 }
