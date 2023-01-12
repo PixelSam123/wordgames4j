@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -22,9 +23,12 @@ import static io.github.pixelsam123.AsyncUtils.setTimeout;
 public class WebsocketAnagram {
 
     private final Map<Session, PlayerInfo> players = new ConcurrentHashMap<>();
-    private Cancellable roundTimeoutHandle = null;
-    private Cancellable roundEndTimeoutHandle = null;
-    private String currentWord = null;
+
+    private Optional<AnagramConfig> gameConfig = Optional.empty();
+
+    private int roundsLeft = 0;
+    private Optional<String> currentWord = Optional.empty();
+    private Optional<Cancellable> roundEndTimeoutHandle = Optional.empty();
     private final Set<Session> currentRoundAnswerers = new HashSet<>();
 
     @OnOpen
@@ -69,64 +73,37 @@ public class WebsocketAnagram {
             return;
         }
 
-        if (roundTimeoutHandle == null && message.matches("/start \\d+ \\d+")) {
+        if (roundEndTimeoutHandle.isEmpty() && message.matches("/start \\d+ \\d+")) {
             String[] command = message.split(" ");
             int roundCount = Integer.parseInt(command[1]);
             int timePerRound = Integer.parseInt(command[2]);
-            int revealAnswerTime = 5;
 
             broadcast(new ChatMessage(
                 roundCount + " rounds started with time per round of " + timePerRound + " seconds!"
             ));
 
-            for (long i = 0; i <= roundCount; i++) {
-                long finalI = i;
-                roundTimeoutHandle = setTimeout(() -> {
-                    currentRoundAnswerers.clear();
-
-                    if (finalI == roundCount) {
-                        broadcast(new FinishedGame());
-                        broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + players
-                            .values()
-                            .stream()
-                            .map(playerInfo -> playerInfo.name + ": " + playerInfo.points)
-                            .collect(Collectors.joining("\n"))));
-
-                        return;
-                    }
-
-                    currentWord = "placehold";
-
-                    OffsetDateTime roundFinishTime = OffsetDateTime.now().plusSeconds(timePerRound);
-                    OffsetDateTime toNextRoundTime = roundFinishTime
-                        .plusSeconds(revealAnswerTime);
-
-                    broadcast(new OngoingRoundInfo("palcehlod", roundFinishTime.toString()));
-
-                    roundEndTimeoutHandle = setTimeout(
-                        () -> endCurrentRound(toNextRoundTime),
-                        Duration.ofSeconds(timePerRound)
-                    );
-                }, Duration.ofSeconds((timePerRound + revealAnswerTime) * i));
-            }
+            gameConfig = Optional.of(new AnagramConfig(timePerRound, 5));
+            roundsLeft = roundCount;
+            startRound();
 
             return;
         }
 
-        if (message.equals(currentWord)) {
+        if (currentWord.isPresent() && message.equals(currentWord.get())) {
             if (currentRoundAnswerers.contains(session)) {
                 send(session, new ChatMessage("You already answered..."));
 
                 return;
             }
 
-            players.get(session).points += 1;
+            players.get(session).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
             currentRoundAnswerers.add(session);
             broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
 
-            if (currentRoundAnswerers.size() == players.size()) {
-                roundEndTimeoutHandle.cancel();
-                endCurrentRound(OffsetDateTime.now().plusSeconds(5L));
+            if (roundEndTimeoutHandle.isPresent()
+                && currentRoundAnswerers.size() == players.size()) {
+                roundEndTimeoutHandle.get().cancel();
+                endCurrentRound();
             }
 
             return;
@@ -135,17 +112,64 @@ public class WebsocketAnagram {
         broadcast(new ChatMessage(players.get(session).name + ": " + message));
     }
 
-    private void endCurrentRound(OffsetDateTime toNextRoundTime) {
-        String playerPointsDisplay = players
+    private void startRound() {
+        if (gameConfig.isEmpty()) {
+            broadcast(new ChatMessage("CANNOT start round becuse configuration is empty!"));
+            return;
+        }
+        AnagramConfig config = gameConfig.get();
+
+        currentRoundAnswerers.clear();
+
+        if (roundsLeft == 0) {
+            broadcast(new FinishedGame());
+            broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + playerToPointsTable()));
+
+            return;
+        }
+
+        currentWord = Optional.of("placehold");
+
+        OffsetDateTime roundFinishTime = OffsetDateTime.now().plusSeconds(config.timePerRound);
+        broadcast(new OngoingRoundInfo("palcehlod", roundFinishTime.toString()));
+
+        roundEndTimeoutHandle = Optional.of(setTimeout(
+            this::endCurrentRound,
+            Duration.ofSeconds(config.timePerRound)
+        ));
+    }
+
+    private void endCurrentRound() {
+        if (gameConfig.isEmpty()) {
+            broadcast(new ChatMessage("CANNOT start round because configuration is empty!"));
+            return;
+        }
+        if (currentWord.isEmpty()) {
+            broadcast(new ChatMessage("CANNOT end round because current word is empty!"));
+            return;
+        }
+        AnagramConfig config = gameConfig.get();
+        String word = currentWord.get();
+
+        OffsetDateTime nextRoundStartTime = OffsetDateTime
+            .now()
+            .plusSeconds(config.timePerRoundEnding);
+
+        broadcast(new ChatMessage("Points:\n" + playerToPointsTable()));
+        broadcast(new FinishedRoundInfo(word, nextRoundStartTime.toString()));
+
+        currentWord = Optional.empty();
+        roundsLeft--;
+
+        startRound();
+    }
+
+    private String playerToPointsTable() {
+        return players
             .values()
             .stream()
-            .map(playerInfo -> playerInfo.name + ": " + playerInfo.points)
-            .collect(Collectors.joining("\n"));
-
-        broadcast(new ChatMessage("Points:\n" + playerPointsDisplay));
-        broadcast(new FinishedRoundInfo(currentWord, toNextRoundTime.toString()));
-
-        currentWord = null;
+            .map(player -> player.name + ": " + player.points)
+            .collect(Collectors.joining());
     }
 
     private void send(Session session, IServerMessage message) {
