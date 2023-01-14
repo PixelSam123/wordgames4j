@@ -148,6 +148,10 @@ public class WebsocketAnagram {
             broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + playerToPointsTable()));
             roundEndTimeoutHandle = Optional.empty();
 
+            for (PlayerInfo player : players.values()) {
+                player.points = 0;
+            }
+
             return;
         }
 
@@ -213,7 +217,7 @@ public class WebsocketAnagram {
             .values()
             .stream()
             .map(player -> player.name + " -> " + player.points)
-            .collect(Collectors.joining());
+            .collect(Collectors.joining("\n"));
     }
 
     private void send(Session session, IServerMessage message) {
