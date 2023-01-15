@@ -50,7 +50,7 @@ public class WebsocketAnagramTest {
             .connectToServer(Client.class, uri)) {
             ObjectNode asksForNameEntry = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
-                new SimpleEntry<>("content", "Please enter name in chat.")
+                new SimpleEntry<>("content", "Type /help for help. Please enter name in chat.")
             );
 
             assertEquals(
@@ -82,9 +82,12 @@ public class WebsocketAnagramTest {
 
             ObjectNode announcesRoundStart = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
-                new SimpleEntry<>("content", "1 rounds started with time per round of 5 seconds!")
+                new SimpleEntry<>(
+                    "content",
+                    "1 rounds started with time per round of 5 seconds! Word length: 4"
+                )
             );
-            session.getAsyncRemote().sendText("/start 1 5");
+            session.getAsyncRemote().sendText("/start 4 1 5");
 
             assertEquals(
                 announcesRoundStart,
