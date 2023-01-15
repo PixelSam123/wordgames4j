@@ -7,6 +7,10 @@ Alternative implementation for wordgames, a word games server for WebSockets
 - Not feeling like finishing the Rust implementation until I wrap my head around async Rust
 - Benchmarking interests (even more alternative implementations in even more languages coming soon?)
 
+## APIs used
+
+Random word API at https://random-word-api.herokuapp.com
+
 ## List of games
 
 1. `ws/anagram` Normal anagrams game. Plans:
