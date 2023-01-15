@@ -69,7 +69,7 @@ public class WebsocketAnagram {
             handleGameStartCommand(message);
             return;
         }
-        if (currentWord.isPresent() && message.equals(currentWord.get())) {
+        if (currentWord.isPresent() && message.toLowerCase().equals(currentWord.get())) {
             handleSuccessfulAnswer(session);
             return;
         }
