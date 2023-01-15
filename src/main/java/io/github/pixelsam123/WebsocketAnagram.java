@@ -39,7 +39,7 @@ public class WebsocketAnagram {
 
     @OnOpen
     public void onOpen(Session session) {
-        send(session, new ChatMessage("Please enter name in chat."));
+        send(session, new ChatMessage("Type /help for help. Please enter name in chat."));
 
         Log.info("New player joined, awaiting name.");
     }
@@ -61,11 +61,14 @@ public class WebsocketAnagram {
     public void onMessage(Session session, String message) {
         PlayerInfo player = players.get(session);
 
+        if (message.matches("/help")) {
+            handleHelpCommand(session);
+        }
         if (player == null) {
             handleNameEntry(session, message);
             return;
         }
-        if (roundEndTimeoutHandle.isEmpty() && message.matches("/start \\d+ \\d+")) {
+        if (roundEndTimeoutHandle.isEmpty() && message.matches("/start \\d+ \\d+ \\d+")) {
             handleGameStartCommand(message);
             return;
         }
@@ -75,6 +78,15 @@ public class WebsocketAnagram {
         }
 
         broadcast(new ChatMessage(players.get(session).name + ": " + message));
+    }
+
+    private void handleHelpCommand(Session session) {
+        send(session, new ChatMessage("""
+            Commands:
+                        
+            /start {wordLength} {roundCount} {timePerRound}
+            Start a new round. Time per round is in seconds.
+            """.trim()));
     }
 
     private void handleNameEntry(Session session, String name) {
@@ -95,14 +107,15 @@ public class WebsocketAnagram {
 
     private void handleGameStartCommand(String command) {
         String[] commandParts = command.split(" ");
-        int roundCount = Integer.parseInt(commandParts[1]);
-        int timePerRound = Integer.parseInt(commandParts[2]);
+        int wordLength = Integer.parseInt(commandParts[1]);
+        int roundCount = Integer.parseInt(commandParts[2]);
+        int timePerRound = Integer.parseInt(commandParts[3]);
 
-        randomWordService.getWordsOfLength(roundCount, 5).subscribe().with(
+        randomWordService.getWordsOfLength(roundCount, wordLength).subscribe().with(
             words -> {
                 broadcast(new ChatMessage(
                     roundCount + " rounds started with time per round of " + timePerRound
-                        + " seconds!"
+                        + " seconds! Word length: " + wordLength
                 ));
 
                 gameConfig = Optional.of(new AnagramConfig(timePerRound, 5));
