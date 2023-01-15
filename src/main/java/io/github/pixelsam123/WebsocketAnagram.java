@@ -63,6 +63,7 @@ public class WebsocketAnagram {
 
         if (message.matches("/help")) {
             handleHelpCommand(session);
+            return;
         }
         if (player == null) {
             handleNameEntry(session, message);
@@ -74,6 +75,10 @@ public class WebsocketAnagram {
         }
         if (currentWord.isPresent() && message.toLowerCase().equals(currentWord.get())) {
             handleSuccessfulAnswer(session);
+            return;
+        }
+        if (currentWord.isPresent() && message.matches("/skip")) {
+            handleSkippingAnswer(session);
             return;
         }
 
@@ -140,6 +145,22 @@ public class WebsocketAnagram {
         players.get(session).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
         currentRoundAnswerers.add(session);
         broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
+
+        if (roundEndTimeoutHandle.isPresent() && currentRoundAnswerers.size() == players.size()) {
+            roundEndTimeoutHandle.get().cancel();
+            endCurrentRound();
+        }
+    }
+
+    private void handleSkippingAnswer(Session session) {
+        if (currentRoundAnswerers.contains(session)) {
+            send(session, new ChatMessage("Can't skip! You already answered."));
+
+            return;
+        }
+
+        currentRoundAnswerers.add(session);
+        broadcast(new ChatMessage(players.get(session).name + " skipped!"));
 
         if (roundEndTimeoutHandle.isPresent() && currentRoundAnswerers.size() == players.size()) {
             roundEndTimeoutHandle.get().cancel();
