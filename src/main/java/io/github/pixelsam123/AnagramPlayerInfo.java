@@ -1,16 +1,16 @@
 package io.github.pixelsam123;
 
-public class PlayerInfo {
+public class AnagramPlayerInfo {
 
     public int points;
 
-    public PlayerInfo() {
+    public AnagramPlayerInfo() {
         this.points = 0;
     }
 
     @Override
     public String toString() {
-        return "PlayerInfo{" + "points=" + points + '}';
+        return "AnagramPlayerInfo{" + "points=" + points + '}';
     }
 
 }

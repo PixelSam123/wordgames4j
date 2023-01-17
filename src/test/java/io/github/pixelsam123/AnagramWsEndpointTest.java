@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
-public class WebsocketAnagramTest {
+public class AnagramWsEndpointTest {
 
     private static final LinkedBlockingDeque<String> messages = new LinkedBlockingDeque<>();
     private static final ObjectMapper jsonMapper = new ObjectMapper();

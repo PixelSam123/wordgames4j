@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @ServerEndpoint(value = "/ws/anagram/{roomId}", encoders = JsonEncoder.class)
 @ApplicationScoped
-public class WebsocketAnagram {
+public class AnagramWsEndpoint {
 
     private final Map<String, AnagramRoom> idToRoom = new ConcurrentHashMap<>();
     private final Map<String, Session> nameToSession = new ConcurrentHashMap<>();
@@ -22,7 +22,7 @@ public class WebsocketAnagram {
 
     private final RandomWordService randomWordService;
 
-    public WebsocketAnagram(@RestClient RandomWordService randomWordService) {
+    public AnagramWsEndpoint(@RestClient RandomWordService randomWordService) {
         this.randomWordService = randomWordService;
     }
 
@@ -62,7 +62,7 @@ public class WebsocketAnagram {
                 nameToSession.put(message, session);
                 sessionToName.put(session, message);
                 room.addPlayerOfName(message);
-            } catch (JoinRoomException err) {
+            } catch (AnagramRoomJoinException err) {
                 nameToSession.remove(message);
                 sessionToName.remove(session);
                 sendServerMessage(

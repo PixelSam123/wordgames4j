@@ -12,11 +12,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static io.github.pixelsam123.AsyncUtils.setTimeout;
+import static io.github.pixelsam123.UtilsAsync.setTimeout;
 
 public class AnagramRoom {
 
-    private final Map<String, PlayerInfo> nameToPlayerInfo = new ConcurrentHashMap<>();
+    private final Map<String, AnagramPlayerInfo> nameToPlayerInfo = new ConcurrentHashMap<>();
 
     private Optional<AnagramConfig> gameConfig = Optional.empty();
 
@@ -39,17 +39,17 @@ public class AnagramRoom {
         this.destroyRoom = destroyRoom;
     }
 
-    public void addPlayerOfName(String name) throws JoinRoomException {
+    public void addPlayerOfName(String name) throws AnagramRoomJoinException {
         int maxRoomSize = 20;
 
         if (nameToPlayerInfo.size() >= maxRoomSize) {
-            throw new JoinRoomException("Room is full! Max size: " + maxRoomSize);
+            throw new AnagramRoomJoinException("Room is full! Max size: " + maxRoomSize);
         }
         if (nameToPlayerInfo.containsKey(name)) {
-            throw new JoinRoomException("Name " + name + " is already in room!");
+            throw new AnagramRoomJoinException("Name " + name + " is already in room!");
         }
 
-        nameToPlayerInfo.put(name, new PlayerInfo());
+        nameToPlayerInfo.put(name, new AnagramPlayerInfo());
         sendToName.accept(name, new ChatMessage("Welcome! Type /help for help"));
         broadcast(new ChatMessage(name + " joined!"));
     }
@@ -174,7 +174,7 @@ public class AnagramRoom {
             broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + nameToPointsTable()));
             roundEndTimeoutHandle = Optional.empty();
 
-            for (PlayerInfo playerInfo : nameToPlayerInfo.values()) {
+            for (AnagramPlayerInfo playerInfo : nameToPlayerInfo.values()) {
                 playerInfo.points = 0;
             }
 

@@ -5,7 +5,7 @@ import io.smallrye.mutiny.subscription.Cancellable;
 
 import java.time.Duration;
 
-public class AsyncUtils {
+public class UtilsAsync {
 
     public static Cancellable setTimeout(Runnable callback, Duration delay) {
         Uni<Void> timeoutUni = Uni.createFrom().voidItem();
