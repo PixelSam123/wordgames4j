@@ -1,72 +1,77 @@
 package io.github.pixelsam123;
 
 import io.github.pixelsam123.server.message.*;
-import io.quarkus.logging.Log;
 import io.smallrye.mutiny.subscription.Cancellable;
 import io.vertx.core.impl.ConcurrentHashSet;
 
-import javax.websocket.*;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.github.pixelsam123.AsyncUtils.setTimeout;
 
-public class Room {
+public class AnagramRoom {
 
-    public final Map<Session, PlayerInfo> players = new ConcurrentHashMap<>();
+    private final Map<String, PlayerInfo> nameToPlayerInfo = new ConcurrentHashMap<>();
 
     private Optional<AnagramConfig> gameConfig = Optional.empty();
 
-    private Set<String> wordsForRound = Set.of();
     private Optional<String> currentWord = Optional.empty();
     private Optional<Cancellable> roundEndTimeoutHandle = Optional.empty();
-    private final Set<Session> currentRoundAnswerers = new ConcurrentHashSet<>();
+    private final Set<String> currentRoundAnswerers = new ConcurrentHashSet<>();
+    private final Set<String> wordsForRound = new ConcurrentHashSet<>();
 
     private final RandomWordService randomWordService;
+    private final BiConsumer<String, IServerMessage> sendToName;
+    private final Runnable destroyRoom;
 
-    public Room(RandomWordService randomWordService) {
+    public AnagramRoom(
+        RandomWordService randomWordService,
+        BiConsumer<String, IServerMessage> sendToName,
+        Runnable destroyRoom
+    ) {
         this.randomWordService = randomWordService;
+        this.sendToName = sendToName;
+        this.destroyRoom = destroyRoom;
     }
 
-    public void onOpen(Session session) {
-        send(session, new ChatMessage("Type /help for help. Please enter name in chat."));
+    public void addPlayerOfName(String name) throws JoinRoomException {
+        int maxRoomSize = 20;
 
-        Log.info("New player joined, awaiting name.");
-    }
-
-    public void onClose(Session session) {
-        PlayerInfo leavingPlayer = players.remove(session);
-        if (leavingPlayer != null) {
-            broadcast(new ChatMessage(leavingPlayer.name + " left!"));
+        if (nameToPlayerInfo.size() >= maxRoomSize) {
+            throw new JoinRoomException("Room is full! Max size: " + maxRoomSize);
+        }
+        if (nameToPlayerInfo.containsKey(name)) {
+            throw new JoinRoomException("Name " + name + " is already in room!");
         }
 
-        if (players.isEmpty() && roundEndTimeoutHandle.isPresent()) {
-            gameConfig = Optional.empty();
-            wordsForRound = Set.of();
-            currentWord = Optional.empty();
+        nameToPlayerInfo.put(name, new PlayerInfo());
+        sendToName.accept(name, new ChatMessage("Welcome! Type /help for help"));
+        broadcast(new ChatMessage(name + " joined!"));
+    }
+
+    public void removePlayerOfName(String name) {
+        nameToPlayerInfo.remove(name);
+        broadcast(new ChatMessage(name + " left!"));
+
+        // Ask for room destruction if room becomes empty
+        if (nameToPlayerInfo.isEmpty() && roundEndTimeoutHandle.isPresent()) {
             roundEndTimeoutHandle.get().cancel();
-            roundEndTimeoutHandle = Optional.empty();
-            currentRoundAnswerers.clear();
+            destroyRoom.run();
         }
     }
 
-    public void onError(Throwable throwable) {
+    public void receiveError(Throwable throwable) {
         broadcast(new ChatMessage("ERROR: " + throwable.getMessage()));
     }
 
-    public void onMessage(Session session, String message) {
-        PlayerInfo player = players.get(session);
-
+    public void receiveMessage(String name, String message) {
         if (message.matches("/help")) {
-            handleHelpCommand(session);
-            return;
-        }
-        if (player.name == null) {
-            handleNameEntry(session, message);
+            handleHelpCommand(name);
             return;
         }
         if (roundEndTimeoutHandle.isEmpty() && message.matches("/start \\d+ \\d+ \\d+")) {
@@ -74,40 +79,27 @@ public class Room {
             return;
         }
         if (currentWord.isPresent() && message.toLowerCase().equals(currentWord.get())) {
-            handleSuccessfulAnswer(session);
+            handleSuccessfulAnswer(name);
             return;
         }
         if (currentWord.isPresent() && message.matches("/skip")) {
-            handleSkippingAnswer(session);
+            handleSkippingAnswer(name);
             return;
         }
 
-        broadcast(new ChatMessage(players.get(session).name + ": " + message));
+        broadcast(new ChatMessage(name + ": " + message));
     }
 
-    private void handleHelpCommand(Session session) {
-        send(session, new ChatMessage("""
+    private void handleHelpCommand(String name) {
+        sendToName.accept(name, new ChatMessage("""
             Commands:
                         
             /start {wordLength} {roundCount} {timePerRound}
             Start a new round. Time per round is in seconds.
+                        
+            /skip
+            Skip your turn in a round.
             """.trim()));
-    }
-
-    private void handleNameEntry(Session session, String name) {
-        if (players
-            .values()
-            .stream()
-            .map(existingPlayer -> existingPlayer.name)
-            .toList()
-            .contains(name)) {
-            send(session, new ChatMessage("Name " + name + " is already in room!"));
-
-            return;
-        }
-
-        players.put(session, new PlayerInfo(name));
-        broadcast(new ChatMessage(name + " joined!"));
     }
 
     private void handleGameStartCommand(String command) {
@@ -125,9 +117,7 @@ public class Room {
 
                 gameConfig = Optional.of(new AnagramConfig(timePerRound, 5));
 
-                Set<String> wordsForRound = new ConcurrentHashSet<>();
                 wordsForRound.addAll(words);
-                this.wordsForRound = wordsForRound;
 
                 startRound();
             },
@@ -135,34 +125,36 @@ public class Room {
         );
     }
 
-    private void handleSuccessfulAnswer(Session session) {
-        if (currentRoundAnswerers.contains(session)) {
-            send(session, new ChatMessage("You already answered..."));
+    private void handleSuccessfulAnswer(String name) {
+        if (currentRoundAnswerers.contains(name)) {
+            sendToName.accept(name, new ChatMessage("You already answered..."));
 
             return;
         }
 
-        players.get(session).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
-        currentRoundAnswerers.add(session);
-        broadcast(new ChatMessage(players.get(session).name + " answered successfully!"));
+        nameToPlayerInfo.get(name).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
+        currentRoundAnswerers.add(name);
+        broadcast(new ChatMessage(name + " answered successfully!"));
 
-        if (roundEndTimeoutHandle.isPresent() && currentRoundAnswerers.size() == players.size()) {
+        if (roundEndTimeoutHandle.isPresent()
+            && currentRoundAnswerers.size() == nameToPlayerInfo.size()) {
             roundEndTimeoutHandle.get().cancel();
             endCurrentRound();
         }
     }
 
-    private void handleSkippingAnswer(Session session) {
-        if (currentRoundAnswerers.contains(session)) {
-            send(session, new ChatMessage("Can't skip! You already answered."));
+    private void handleSkippingAnswer(String name) {
+        if (currentRoundAnswerers.contains(name)) {
+            sendToName.accept(name, new ChatMessage("Can't skip! You already answered."));
 
             return;
         }
 
-        currentRoundAnswerers.add(session);
-        broadcast(new ChatMessage(players.get(session).name + " skipped!"));
+        currentRoundAnswerers.add(name);
+        broadcast(new ChatMessage(name + " skipped!"));
 
-        if (roundEndTimeoutHandle.isPresent() && currentRoundAnswerers.size() == players.size()) {
+        if (roundEndTimeoutHandle.isPresent()
+            && currentRoundAnswerers.size() == nameToPlayerInfo.size()) {
             roundEndTimeoutHandle.get().cancel();
             endCurrentRound();
         }
@@ -179,11 +171,11 @@ public class Room {
 
         if (wordsForRound.size() == 0) {
             broadcast(new FinishedGame());
-            broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + playerToPointsTable()));
+            broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + nameToPointsTable()));
             roundEndTimeoutHandle = Optional.empty();
 
-            for (PlayerInfo player : players.values()) {
-                player.points = 0;
+            for (PlayerInfo playerInfo : nameToPlayerInfo.values()) {
+                playerInfo.points = 0;
             }
 
             return;
@@ -232,7 +224,7 @@ public class Room {
             .now()
             .plusSeconds(config.timePerRoundEnding);
 
-        broadcast(new ChatMessage("Points:\n" + playerToPointsTable()));
+        broadcast(new ChatMessage("Points:\n" + nameToPointsTable()));
         currentWord.ifPresentOrElse(
             word -> {
                 broadcast(new FinishedRoundInfo(word, nextRoundStartTime.toString()));
@@ -246,27 +238,18 @@ public class Room {
         setTimeout(this::startRound, Duration.ofSeconds(config.timePerRoundEnding));
     }
 
-    private String playerToPointsTable() {
-        return players
-            .values()
+    private String nameToPointsTable() {
+        return nameToPlayerInfo
+            .entrySet()
             .stream()
-            .map(player -> player.name + " -> " + player.points)
+            .map(entry -> entry.getKey() + " -> " + entry.getValue().points)
             .collect(Collectors.joining("\n"));
     }
 
-    private void send(Session session, IServerMessage message) {
-        session.getAsyncRemote().sendObject(message, result -> {
-            if (result.getException() != null) {
-                Log.error(result.getException().getMessage(), result.getException().getCause());
-            }
-        });
-    }
-
     private void broadcast(IServerMessage message) {
-        for (Session playerSession : players.keySet()) {
-            send(playerSession, message);
+        for (String name : nameToPlayerInfo.keySet()) {
+            sendToName.accept(name, message);
         }
-        Log.info("BROADCAST -> " + message);
     }
 
 }

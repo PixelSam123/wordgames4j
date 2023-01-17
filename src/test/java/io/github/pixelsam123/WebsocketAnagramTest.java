@@ -11,10 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import javax.websocket.ClientEndpoint;
-import javax.websocket.ContainerProvider;
-import javax.websocket.OnMessage;
-import javax.websocket.Session;
+import javax.websocket.*;
 import java.net.URI;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Set;
@@ -48,9 +45,11 @@ public class WebsocketAnagramTest {
         try (Session session = ContainerProvider
             .getWebSocketContainer()
             .connectToServer(Client.class, uri)) {
+            RemoteEndpoint.Async remote = session.getAsyncRemote();
+
             ObjectNode asksForNameEntry = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
-                new SimpleEntry<>("content", "Type /help for help. Please enter name in chat.")
+                new SimpleEntry<>("content", "Please enter name in chat.")
             );
 
             assertEquals(
@@ -58,12 +57,20 @@ public class WebsocketAnagramTest {
                 jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
             );
 
+            ObjectNode welcomesPlayer = constructJson(
+                new SimpleEntry<>("type", "ChatMessage"),
+                new SimpleEntry<>("content", "Welcome! Type /help for help")
+            );
             ObjectNode announcesJoiningPlayer = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
                 new SimpleEntry<>("content", "PlayerOne joined!")
             );
-            session.getAsyncRemote().sendText("PlayerOne");
+            remote.sendText("PlayerOne");
 
+            assertEquals(
+                welcomesPlayer,
+                jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
+            );
             assertEquals(
                 announcesJoiningPlayer,
                 jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
@@ -73,7 +80,7 @@ public class WebsocketAnagramTest {
                 new SimpleEntry<>("type", "ChatMessage"),
                 new SimpleEntry<>("content", "PlayerOne: Heyy, I'm chatting!")
             );
-            session.getAsyncRemote().sendText("Heyy, I'm chatting!");
+            remote.sendText("Heyy, I'm chatting!");
 
             assertEquals(
                 announcesChat,
@@ -87,7 +94,7 @@ public class WebsocketAnagramTest {
                     "1 rounds started with time per round of 5 seconds! Word length: 4"
                 )
             );
-            session.getAsyncRemote().sendText("/start 4 1 5");
+            remote.sendText("/start 4 1 5");
 
             assertEquals(
                 announcesRoundStart,
