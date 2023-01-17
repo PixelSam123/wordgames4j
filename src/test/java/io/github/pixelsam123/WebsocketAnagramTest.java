@@ -29,7 +29,7 @@ public class WebsocketAnagramTest {
     private static final LinkedBlockingDeque<String> messages = new LinkedBlockingDeque<>();
     private static final ObjectMapper jsonMapper = new ObjectMapper();
 
-    @TestHTTPResource("/ws/anagram")
+    @TestHTTPResource("/ws/anagram/1")
     public URI uri;
 
     @InjectMock
