@@ -1,4 +1,4 @@
-package io.github.pixelsam123;
+package io.github.pixelsam123.anagram;
 
 public class AnagramConfig {
 
@@ -8,6 +8,14 @@ public class AnagramConfig {
     public AnagramConfig(int timePerRound, int timePerRoundEnding) {
         this.timePerRound = timePerRound;
         this.timePerRoundEnding = timePerRoundEnding;
+    }
+
+    @Override
+    public String toString() {
+        return "AnagramConfig{"
+            + "timePerRound=" + timePerRound
+            + ", timePerRoundEnding=" + timePerRoundEnding
+            + '}';
     }
 
 }

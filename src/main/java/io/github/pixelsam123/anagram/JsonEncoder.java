@@ -1,15 +1,15 @@
-package io.github.pixelsam123;
+package io.github.pixelsam123.anagram;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.pixelsam123.server.message.IServerMessage;
+import io.github.pixelsam123.common.message.IMessage;
 
 import javax.websocket.EncodeException;
 import javax.websocket.Encoder;
 import javax.websocket.EndpointConfig;
 
-public class JsonEncoder implements Encoder.Text<IServerMessage> {
+public class JsonEncoder implements Encoder.Text<IMessage> {
 
     private final ObjectMapper jsonMapper;
 
@@ -18,7 +18,7 @@ public class JsonEncoder implements Encoder.Text<IServerMessage> {
     }
 
     @Override
-    public String encode(IServerMessage serverMessage) throws EncodeException {
+    public String encode(IMessage serverMessage) throws EncodeException {
         ObjectNode message = jsonMapper.createObjectNode();
         message.put("type", serverMessage.getType());
         message.putPOJO("content", serverMessage.getContent());

@@ -49,7 +49,7 @@ public class AnagramWsEndpointTest {
 
             ObjectNode asksForNameEntry = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
-                new SimpleEntry<>("content", "Please enter name in chat.")
+                new SimpleEntry<>("content", "Please enter username in chat.")
             );
 
             assertEquals(

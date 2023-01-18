@@ -1,6 +1,12 @@
-package io.github.pixelsam123;
+package io.github.pixelsam123.anagram;
 
-import io.github.pixelsam123.server.message.*;
+import io.github.pixelsam123.RandomWordService;
+import io.github.pixelsam123.anagram.message.FinishedGame;
+import io.github.pixelsam123.anagram.message.FinishedRoundInfo;
+import io.github.pixelsam123.anagram.message.OngoingRoundInfo;
+import io.github.pixelsam123.common.IRoomInterceptor;
+import io.github.pixelsam123.common.message.ChatMessage;
+import io.github.pixelsam123.common.message.IMessage;
 import io.smallrye.mutiny.subscription.Cancellable;
 import io.vertx.core.impl.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
@@ -10,12 +16,12 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.github.pixelsam123.UtilsAsync.setTimeout;
+import static io.github.pixelsam123.common.utils.UtilsAsync.setTimeout;
 
-public class AnagramRoom {
+public class AnagramRoom implements IRoomInterceptor {
 
     private final Map<String, AnagramPlayerInfo> nameToPlayerInfo = new ConcurrentHashMap<>();
 
@@ -27,83 +33,64 @@ public class AnagramRoom {
     private final Set<String> wordsForRound = new ConcurrentHashSet<>();
 
     private final RandomWordService randomWordService;
-    private final BiConsumer<String, IServerMessage> sendToName;
-    private final Runnable destroyRoom;
+    private final Consumer<IMessage> onMessageToBeBroadcast;
 
     public AnagramRoom(
         RandomWordService randomWordService,
-        BiConsumer<String, IServerMessage> sendToName,
-        Runnable destroyRoom
+        Consumer<IMessage> onMessageToBeBroadcast
     ) {
         this.randomWordService = randomWordService;
-        this.sendToName = sendToName;
-        this.destroyRoom = destroyRoom;
+        this.onMessageToBeBroadcast = onMessageToBeBroadcast;
     }
 
-    public void addPlayerOfName(String name) throws AnagramRoomJoinException {
-        int maxRoomSize = 20;
-
-        if (nameToPlayerInfo.size() >= maxRoomSize) {
-            throw new AnagramRoomJoinException("Room is full! Max size: " + maxRoomSize);
-        }
-        if (nameToPlayerInfo.containsKey(name)) {
-            throw new AnagramRoomJoinException("Name " + name + " is already in room!");
-        }
-
-        nameToPlayerInfo.put(name, new AnagramPlayerInfo());
-        sendToName.accept(name, new ChatMessage("Welcome! Type /help for help"));
-        broadcast(new ChatMessage(name + " joined!"));
+    @Override
+    public IMessage interceptAfterUsernameAdded(String username) {
+        nameToPlayerInfo.put(username, new AnagramPlayerInfo());
+        return new ChatMessage("Welcome! Type /help for help");
     }
 
-    public void removePlayerOfName(String name) {
-        nameToPlayerInfo.remove(name);
-        broadcast(new ChatMessage(name + " left!"));
+    @Override
+    public void interceptAfterUsernameRemoved(String username) {
+        nameToPlayerInfo.remove(username);
 
-        // Ask for room destruction if room becomes empty
         if (nameToPlayerInfo.isEmpty() && roundEndTimeoutHandle != null) {
             roundEndTimeoutHandle.cancel();
-            destroyRoom.run();
         }
     }
 
-    public void receiveError(Throwable throwable) {
-        broadcast(new ChatMessage("ERROR: " + throwable.getMessage()));
+    @Override
+    public @Nullable IMessage interceptMessage(String username, String clientMessage) {
+        if (clientMessage.matches("/help")) {
+            return handleHelpCommand();
+        }
+        if (roundEndTimeoutHandle == null && clientMessage.matches("/start \\d+ \\d+ \\d+")) {
+            return handleGameStartCommand(clientMessage);
+        }
+        if (clientMessage.toLowerCase().equals(currentWord)) {
+            return handleCorrectAnswer(username);
+        }
+        if (currentWord != null && clientMessage.matches("/skip")) {
+            return handleSkippingAnswer(username);
+        }
+
+        return null;
     }
 
-    public void receiveMessage(String name, String message) {
-        if (message.matches("/help")) {
-            handleHelpCommand(name);
-            return;
-        }
-        if (roundEndTimeoutHandle == null && message.matches("/start \\d+ \\d+ \\d+")) {
-            handleGameStartCommand(message);
-            return;
-        }
-        if (message.toLowerCase().equals(currentWord)) {
-            handleSuccessfulAnswer(name);
-            return;
-        }
-        if (currentWord != null && message.matches("/skip")) {
-            handleSkippingAnswer(name);
-            return;
-        }
-
-        broadcast(new ChatMessage(name + ": " + message));
-    }
-
-    private void handleHelpCommand(String name) {
-        sendToName.accept(name, new ChatMessage("""
+    private IMessage handleHelpCommand() {
+        return new ChatMessage("""
             Commands:
+            /help
+            Show this message
                         
             /start {wordLength} {roundCount} {timePerRound}
             Start a new round. Time per round is in seconds.
                         
             /skip
             Skip your turn in a round.
-            """.trim()));
+            """.trim());
     }
 
-    private void handleGameStartCommand(String command) {
+    private IMessage handleGameStartCommand(String command) {
         String[] commandParts = command.split(" ");
         int wordLength = Integer.parseInt(commandParts[1]);
         int roundCount = Integer.parseInt(commandParts[2]);
@@ -124,13 +111,13 @@ public class AnagramRoom {
             },
             err -> broadcast(new ChatMessage("FAILED to fetch words. Cannot start game."))
         );
+
+        return new ChatMessage("Requested a new game.");
     }
 
-    private void handleSuccessfulAnswer(String name) {
+    private IMessage handleCorrectAnswer(String name) {
         if (currentRoundAnswerers.contains(name)) {
-            sendToName.accept(name, new ChatMessage("You already answered..."));
-
-            return;
+            return new ChatMessage("You already answered...");
         }
 
         nameToPlayerInfo.get(name).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
@@ -142,13 +129,16 @@ public class AnagramRoom {
             roundEndTimeoutHandle.cancel();
             endCurrentRound();
         }
+
+        return new ChatMessage(
+            "You are #" + currentRoundAnswerers.size() + "/" + nameToPlayerInfo.size()
+                + " to answer this round."
+        );
     }
 
-    private void handleSkippingAnswer(String name) {
+    private IMessage handleSkippingAnswer(String name) {
         if (currentRoundAnswerers.contains(name)) {
-            sendToName.accept(name, new ChatMessage("Can't skip! You already answered."));
-
-            return;
+            return new ChatMessage("You already answered...");
         }
 
         currentRoundAnswerers.add(name);
@@ -159,6 +149,11 @@ public class AnagramRoom {
             roundEndTimeoutHandle.cancel();
             endCurrentRound();
         }
+
+        return new ChatMessage(
+            "You are #" + currentRoundAnswerers.size() + "/" + nameToPlayerInfo.size()
+                + " to skip this round."
+        );
     }
 
     private void startRound() {
@@ -244,10 +239,8 @@ public class AnagramRoom {
             .collect(Collectors.joining("\n"));
     }
 
-    private void broadcast(IServerMessage message) {
-        for (String name : nameToPlayerInfo.keySet()) {
-            sendToName.accept(name, message);
-        }
+    private void broadcast(IMessage message) {
+        onMessageToBeBroadcast.accept(message);
     }
 
 }

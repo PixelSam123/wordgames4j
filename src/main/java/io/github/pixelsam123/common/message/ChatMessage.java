@@ -1,6 +1,6 @@
-package io.github.pixelsam123.server.message;
+package io.github.pixelsam123.common.message;
 
-public class ChatMessage implements IServerMessage {
+public class ChatMessage implements IMessage {
 
     private final String content;
 

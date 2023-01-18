@@ -1,4 +1,4 @@
-package io.github.pixelsam123;
+package io.github.pixelsam123.common.utils;
 
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.subscription.Cancellable;

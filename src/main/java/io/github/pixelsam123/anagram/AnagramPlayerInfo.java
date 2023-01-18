@@ -1,4 +1,4 @@
-package io.github.pixelsam123;
+package io.github.pixelsam123.anagram;
 
 public class AnagramPlayerInfo {
 
