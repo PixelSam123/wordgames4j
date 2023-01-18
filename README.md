@@ -82,25 +82,7 @@ consult https://quarkus.io/guides/maven-tooling.
 
 ## Related Guides
 
-- Narayana JTA - Transaction manager ([guide](https://quarkus.io/guides/transaction)): Offer JTA
-  transaction support (included in Hibernate ORM)
 - Hibernate Validator ([guide](https://quarkus.io/guides/validation)): Validate object properties (
   field, getter) and method parameters for your beans (REST, CDI, JPA)
 - WebSockets ([guide](https://quarkus.io/guides/websockets)): WebSocket communication channel
   support
-- Agroal - Database connection pool ([guide](https://quarkus.io/guides/datasource)): Pool JDBC
-  database connections (included in Hibernate ORM)
-
-## Provided Code
-
-### RESTEasy Reactive
-
-Easily start your Reactive RESTful Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
-
-### WebSockets
-
-WebSocket communication channel starter code
-
-[Related guide section...](https://quarkus.io/guides/websockets)

@@ -46,19 +46,6 @@
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-narayana-jta</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-agroal</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkiverse.jdbc</groupId>
-      <artifactId>quarkus-jdbc-sqlite</artifactId>
-      <version>1.0.3</version>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-client-reactive-jackson</artifactId>
     </dependency>
     <dependency>
