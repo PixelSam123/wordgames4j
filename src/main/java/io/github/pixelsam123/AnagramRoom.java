@@ -3,6 +3,7 @@ package io.github.pixelsam123;
 import io.github.pixelsam123.server.message.*;
 import io.smallrye.mutiny.subscription.Cancellable;
 import io.vertx.core.impl.ConcurrentHashSet;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -18,10 +19,10 @@ public class AnagramRoom {
 
     private final Map<String, AnagramPlayerInfo> nameToPlayerInfo = new ConcurrentHashMap<>();
 
-    private Optional<AnagramConfig> gameConfig = Optional.empty();
+    private @Nullable AnagramConfig gameConfig = null;
 
-    private Optional<String> currentWord = Optional.empty();
-    private Optional<Cancellable> roundEndTimeoutHandle = Optional.empty();
+    private @Nullable String currentWord = null;
+    private @Nullable Cancellable roundEndTimeoutHandle = null;
     private final Set<String> currentRoundAnswerers = new ConcurrentHashSet<>();
     private final Set<String> wordsForRound = new ConcurrentHashSet<>();
 
@@ -59,8 +60,8 @@ public class AnagramRoom {
         broadcast(new ChatMessage(name + " left!"));
 
         // Ask for room destruction if room becomes empty
-        if (nameToPlayerInfo.isEmpty() && roundEndTimeoutHandle.isPresent()) {
-            roundEndTimeoutHandle.get().cancel();
+        if (nameToPlayerInfo.isEmpty() && roundEndTimeoutHandle != null) {
+            roundEndTimeoutHandle.cancel();
             destroyRoom.run();
         }
     }
@@ -74,15 +75,15 @@ public class AnagramRoom {
             handleHelpCommand(name);
             return;
         }
-        if (roundEndTimeoutHandle.isEmpty() && message.matches("/start \\d+ \\d+ \\d+")) {
+        if (roundEndTimeoutHandle == null && message.matches("/start \\d+ \\d+ \\d+")) {
             handleGameStartCommand(message);
             return;
         }
-        if (currentWord.isPresent() && message.toLowerCase().equals(currentWord.get())) {
+        if (message.toLowerCase().equals(currentWord)) {
             handleSuccessfulAnswer(name);
             return;
         }
-        if (currentWord.isPresent() && message.matches("/skip")) {
+        if (currentWord != null && message.matches("/skip")) {
             handleSkippingAnswer(name);
             return;
         }
@@ -115,7 +116,7 @@ public class AnagramRoom {
                         + " seconds! Word length: " + wordLength
                 ));
 
-                gameConfig = Optional.of(new AnagramConfig(timePerRound, 5));
+                gameConfig = new AnagramConfig(timePerRound, 5);
 
                 wordsForRound.addAll(words);
 
@@ -136,9 +137,9 @@ public class AnagramRoom {
         currentRoundAnswerers.add(name);
         broadcast(new ChatMessage(name + " answered successfully!"));
 
-        if (roundEndTimeoutHandle.isPresent()
+        if (roundEndTimeoutHandle != null
             && currentRoundAnswerers.size() == nameToPlayerInfo.size()) {
-            roundEndTimeoutHandle.get().cancel();
+            roundEndTimeoutHandle.cancel();
             endCurrentRound();
         }
     }
@@ -153,26 +154,25 @@ public class AnagramRoom {
         currentRoundAnswerers.add(name);
         broadcast(new ChatMessage(name + " skipped!"));
 
-        if (roundEndTimeoutHandle.isPresent()
+        if (roundEndTimeoutHandle != null
             && currentRoundAnswerers.size() == nameToPlayerInfo.size()) {
-            roundEndTimeoutHandle.get().cancel();
+            roundEndTimeoutHandle.cancel();
             endCurrentRound();
         }
     }
 
     private void startRound() {
-        if (gameConfig.isEmpty()) {
+        if (gameConfig == null) {
             broadcast(new ChatMessage("CANNOT start round because configuration is empty!"));
             return;
         }
-        AnagramConfig config = gameConfig.get();
 
         currentRoundAnswerers.clear();
 
         if (wordsForRound.size() == 0) {
             broadcast(new FinishedGame());
             broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + nameToPointsTable()));
-            roundEndTimeoutHandle = Optional.empty();
+            roundEndTimeoutHandle = null;
 
             for (AnagramPlayerInfo playerInfo : nameToPlayerInfo.values()) {
                 playerInfo.points = 0;
@@ -182,9 +182,9 @@ public class AnagramRoom {
         }
 
         int randomWordIndex = ThreadLocalRandom.current().nextInt(0, wordsForRound.size());
-        currentWord = wordsForRound.stream().skip(randomWordIndex).findFirst();
+        currentWord = wordsForRound.stream().skip(randomWordIndex).findFirst().orElse(null);
 
-        if (currentWord.isEmpty()) {
+        if (currentWord == null) {
             broadcast(new ChatMessage(
                 "NOT SUPPOSED TO HAPPEN: Random word is empty. Skipping round."
             ));
@@ -194,7 +194,7 @@ public class AnagramRoom {
         }
 
         List<Character> shuffledChars = new ArrayList<>();
-        for (char character : currentWord.get().toCharArray()) {
+        for (char character : currentWord.toCharArray()) {
             shuffledChars.add(character);
         }
         Collections.shuffle(shuffledChars);
@@ -204,38 +204,36 @@ public class AnagramRoom {
             .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
             .toString();
 
-        OffsetDateTime roundFinishTime = OffsetDateTime.now().plusSeconds(config.timePerRound);
+        OffsetDateTime roundFinishTime = OffsetDateTime.now().plusSeconds(gameConfig.timePerRound);
         broadcast(new OngoingRoundInfo(shuffledWord, roundFinishTime.toString()));
 
-        roundEndTimeoutHandle = Optional.of(setTimeout(
+        roundEndTimeoutHandle = setTimeout(
             this::endCurrentRound,
-            Duration.ofSeconds(config.timePerRound)
-        ));
+            Duration.ofSeconds(gameConfig.timePerRound)
+        );
     }
 
     private void endCurrentRound() {
-        if (gameConfig.isEmpty()) {
+        if (gameConfig == null) {
             broadcast(new ChatMessage("CANNOT end round because configuration is empty!"));
             return;
         }
-        AnagramConfig config = gameConfig.get();
 
         OffsetDateTime nextRoundStartTime = OffsetDateTime
             .now()
-            .plusSeconds(config.timePerRoundEnding);
+            .plusSeconds(gameConfig.timePerRoundEnding);
 
         broadcast(new ChatMessage("Points:\n" + nameToPointsTable()));
-        currentWord.ifPresentOrElse(
-            word -> {
-                broadcast(new FinishedRoundInfo(word, nextRoundStartTime.toString()));
-                wordsForRound.remove(word);
-            },
-            () -> broadcast(new FinishedRoundInfo("INVALID_STATE", nextRoundStartTime.toString()))
-        );
+        if (currentWord != null) {
+            broadcast(new FinishedRoundInfo(currentWord, nextRoundStartTime.toString()));
+            wordsForRound.remove(currentWord);
+        } else {
+            broadcast(new FinishedRoundInfo("INVALID_STATE", nextRoundStartTime.toString()));
+        }
 
-        currentWord = Optional.empty();
+        currentWord = null;
 
-        setTimeout(this::startRound, Duration.ofSeconds(config.timePerRoundEnding));
+        setTimeout(this::startRound, Duration.ofSeconds(gameConfig.timePerRoundEnding));
     }
 
     private String nameToPointsTable() {
