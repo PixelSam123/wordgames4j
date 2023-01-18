@@ -35,6 +35,3 @@ bin/
 
 # Local environment
 .env
-
-# SQlite datasource
-wordgames4j.db
