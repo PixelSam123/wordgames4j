@@ -79,10 +79,3 @@ You can then execute your native executable with: `./target/wordgames4j-1.0-SNAP
 
 If you want to learn more about building native executables, please
 consult https://quarkus.io/guides/maven-tooling.
-
-## Related Guides
-
-- Hibernate Validator ([guide](https://quarkus.io/guides/validation)): Validate object properties (
-  field, getter) and method parameters for your beans (REST, CDI, JPA)
-- WebSockets ([guide](https://quarkus.io/guides/websockets)): WebSocket communication channel
-  support
