@@ -1,6 +1,7 @@
 package io.github.pixelsam123.anagram.message;
 
 import io.github.pixelsam123.common.message.IMessage;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
@@ -21,7 +22,7 @@ public class FinishedRoundInfo implements IMessage {
     }
 
     @Override
-    public Object getContent() {
+    public @Nullable Object getContent() {
         return content;
     }
 
