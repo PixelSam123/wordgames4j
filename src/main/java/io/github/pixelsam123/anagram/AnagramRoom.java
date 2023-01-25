@@ -67,6 +67,9 @@ public class AnagramRoom implements IRoomInterceptor {
         if (clientMessage.matches("/help")) {
             return handleHelpCommand();
         }
+        if (clientMessage.matches("/list")) {
+            return handleListCommand();
+        }
         if (roundEndTimeoutHandle == null && clientMessage.matches("/start \\d+ \\d+ \\d+")) {
             return handleGameStartCommand(clientMessage);
         }
@@ -85,6 +88,9 @@ public class AnagramRoom implements IRoomInterceptor {
             Commands:
             /help
             Show this message
+            
+            /list
+            List the players in a room
                         
             /start {wordLength} {roundCount} {timePerRound}
             Start a new round. Time per round is in seconds.
@@ -92,6 +98,10 @@ public class AnagramRoom implements IRoomInterceptor {
             /skip
             Skip your turn in a round.
             """.trim()));
+    }
+
+    private List<IMessage> handleListCommand() {
+        return List.of(new ChatMessage(nameToPointsTable()));
     }
 
     private List<IMessage> handleGameStartCommand(String command) {
