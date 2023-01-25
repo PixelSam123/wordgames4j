@@ -2,9 +2,11 @@ package io.github.pixelsam123.common;
 
 import io.github.pixelsam123.common.message.ChatMessage;
 import io.github.pixelsam123.common.message.IMessage;
+import io.github.pixelsam123.common.message.PongMessage;
 import io.quarkus.logging.Log;
 
 import javax.websocket.Session;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -60,6 +62,11 @@ public class Room {
     }
 
     public void receiveMessage(Session session, String clientMessage) {
+        if (clientMessage.equals("/ping")) {
+            sendMessage(session, new PongMessage());
+            return;
+        }
+
         String username = sessionToUsername.get(session);
 
         if (username.isEmpty()) {
@@ -67,9 +74,11 @@ public class Room {
             return;
         }
 
-        IMessage interceptedMessage = interceptor.interceptMessage(username, clientMessage);
-        if (interceptedMessage != null) {
-            sendMessage(session, interceptedMessage);
+        List<IMessage> messages = interceptor.interceptMessage(username, clientMessage);
+        if (messages != null) {
+            for (IMessage message : messages) {
+                sendMessage(session, message);
+            }
             return;
         }
 
@@ -94,8 +103,10 @@ public class Room {
 
         sessionToUsername.put(session, username);
 
-        IMessage interceptedMessage = interceptor.interceptAfterUsernameAdded(username);
-        sendMessage(session, interceptedMessage);
+        List<IMessage> messages = interceptor.interceptAfterUsernameAdded(username);
+        for (IMessage message : messages) {
+            sendMessage(session, message);
+        }
 
         broadcast(new ChatMessage(username + " joined!"));
     }

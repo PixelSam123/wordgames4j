@@ -44,9 +44,13 @@ public class AnagramRoom implements IRoomInterceptor {
     }
 
     @Override
-    public IMessage interceptAfterUsernameAdded(String username) {
+    public List<IMessage> interceptAfterUsernameAdded(String username) {
         nameToPlayerInfo.put(username, new AnagramPlayerInfo());
-        return new ChatMessage("Welcome! Type /help for help");
+
+        List<IMessage> messagesToSend = new ArrayList<>();
+        messagesToSend.add(new ChatMessage("Welcome! Type /help for help"));
+
+        return messagesToSend;
     }
 
     @Override
@@ -59,7 +63,7 @@ public class AnagramRoom implements IRoomInterceptor {
     }
 
     @Override
-    public @Nullable IMessage interceptMessage(String username, String clientMessage) {
+    public @Nullable List<IMessage> interceptMessage(String username, String clientMessage) {
         if (clientMessage.matches("/help")) {
             return handleHelpCommand();
         }
@@ -76,8 +80,8 @@ public class AnagramRoom implements IRoomInterceptor {
         return null;
     }
 
-    private IMessage handleHelpCommand() {
-        return new ChatMessage("""
+    private List<IMessage> handleHelpCommand() {
+        return List.of(new ChatMessage("""
             Commands:
             /help
             Show this message
@@ -87,10 +91,10 @@ public class AnagramRoom implements IRoomInterceptor {
                         
             /skip
             Skip your turn in a round.
-            """.trim());
+            """.trim()));
     }
 
-    private IMessage handleGameStartCommand(String command) {
+    private List<IMessage> handleGameStartCommand(String command) {
         String[] commandParts = command.split(" ");
         int wordLength = Integer.parseInt(commandParts[1]);
         int roundCount = Integer.parseInt(commandParts[2]);
@@ -112,12 +116,12 @@ public class AnagramRoom implements IRoomInterceptor {
             err -> broadcast(new ChatMessage("FAILED to fetch words. Cannot start game."))
         );
 
-        return new ChatMessage("Requested a new game.");
+        return List.of(new ChatMessage("Requested a new game."));
     }
 
-    private IMessage handleCorrectAnswer(String name) {
+    private List<IMessage> handleCorrectAnswer(String name) {
         if (currentRoundAnswerers.contains(name)) {
-            return new ChatMessage("You already answered...");
+            return List.of(new ChatMessage("You already answered..."));
         }
 
         nameToPlayerInfo.get(name).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
@@ -130,15 +134,15 @@ public class AnagramRoom implements IRoomInterceptor {
             endCurrentRound();
         }
 
-        return new ChatMessage(
+        return List.of(new ChatMessage(
             "You are #" + currentRoundAnswerers.size() + "/" + nameToPlayerInfo.size()
                 + " to answer this round."
-        );
+        ));
     }
 
-    private IMessage handleSkippingAnswer(String name) {
+    private List<IMessage> handleSkippingAnswer(String name) {
         if (currentRoundAnswerers.contains(name)) {
-            return new ChatMessage("You already answered...");
+            return List.of(new ChatMessage("You already answered..."));
         }
 
         currentRoundAnswerers.add(name);
@@ -150,10 +154,10 @@ public class AnagramRoom implements IRoomInterceptor {
             endCurrentRound();
         }
 
-        return new ChatMessage(
+        return List.of(new ChatMessage(
             "You are #" + currentRoundAnswerers.size() + "/" + nameToPlayerInfo.size()
                 + " to skip this round."
-        );
+        ));
     }
 
     private void startRound() {
@@ -218,7 +222,9 @@ public class AnagramRoom implements IRoomInterceptor {
             .now()
             .plusSeconds(gameConfig.timePerRoundEnding);
 
-        broadcast(new ChatMessage("Points:\n" + nameToPointsTable()));
+        broadcast(new ChatMessage(
+            "Points:\n" + nameToPointsTable() + "\n" + (wordsForRound.size() - 1)
+                + " round(s) left."));
         if (currentWord != null) {
             broadcast(new FinishedRoundInfo(currentWord, nextRoundStartTime.toString()));
             wordsForRound.remove(currentWord);
