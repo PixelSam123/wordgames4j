@@ -7,10 +7,14 @@ import io.github.pixelsam123.anagram.message.OngoingRoundInfo;
 import io.github.pixelsam123.common.IRoomInterceptor;
 import io.github.pixelsam123.common.message.ChatMessage;
 import io.github.pixelsam123.common.message.IMessage;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.subscription.Cancellable;
+import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.impl.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -70,7 +74,8 @@ public class AnagramRoom implements IRoomInterceptor {
         if (clientMessage.matches("/list")) {
             return handleListCommand();
         }
-        if (roundEndTimeoutHandle == null && clientMessage.matches("/start \\d+ \\d+ \\d+")) {
+        if (roundEndTimeoutHandle == null && clientMessage.matches(
+            "/start \\d+ \\d+ \\d+ (true|false)")) {
             return handleGameStartCommand(clientMessage);
         }
         if (clientMessage.toLowerCase().equals(currentWord)) {
@@ -88,11 +93,11 @@ public class AnagramRoom implements IRoomInterceptor {
             Commands:
             /help
             Show this message
-            
+                        
             /list
             List the players in a room
                         
-            /start {wordLength} {roundCount} {timePerRound}
+            /start {wordLength} {roundCount} {timePerRound} {isIndonesian:boolean}
             Start a new round. Time per round is in seconds.
                         
             /skip
@@ -109,24 +114,60 @@ public class AnagramRoom implements IRoomInterceptor {
         int wordLength = Integer.parseInt(commandParts[1]);
         int roundCount = Integer.parseInt(commandParts[2]);
         int timePerRound = Integer.parseInt(commandParts[3]);
+        boolean isIndonesian = Boolean.parseBoolean(commandParts[4]);
 
-        randomWordService.getWordsOfLength(roundCount, wordLength).subscribe().with(
-            words -> {
-                broadcast(new ChatMessage(
-                    roundCount + " rounds started with time per round of " + timePerRound
-                        + " seconds! Word length: " + wordLength
-                ));
+        String roundAnnouncementMessage =
+            roundCount + " rounds started with time per round of " + timePerRound
+                + " seconds!\nWord length: " + wordLength + "\nIs Indonesian: " + isIndonesian;
 
-                gameConfig = new AnagramConfig(timePerRound, 5);
+        if (isIndonesian) {
+            Uni.createFrom().item(Unchecked.supplier(() -> {
+                try (Scanner wordBank = new Scanner(new File("wordbank_id.txt"))) {
+                    List<String> wordsOfRequestedLength = new ArrayList<>();
+                    while (wordBank.hasNextLine()) {
+                        String word = wordBank.nextLine();
+                        if (word.length() == wordLength) {
+                            wordsOfRequestedLength.add(word);
+                        }
+                    }
 
-                wordsForRound.addAll(words);
+                    List<String> wordPool = new ArrayList<>();
+                    while (wordPool.size() < roundCount) {
+                        int randomIdx = ThreadLocalRandom
+                            .current()
+                            .nextInt(0, wordsOfRequestedLength.size());
+                        wordPool.add(wordsOfRequestedLength.get(randomIdx));
+                    }
 
-                startRound();
-            },
-            err -> broadcast(new ChatMessage("FAILED to fetch words. Cannot start game."))
-        );
+                    return Set.copyOf(wordPool);
+                }
+            })).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()).subscribe().with(
+                words -> announceAndStartGame(words, roundAnnouncementMessage, timePerRound),
+                err -> broadcast(new ChatMessage("FAILED to read word bank. Cannot start game."))
+            );
+        } else {
+            randomWordService.getWordsOfLength(roundCount, wordLength).subscribe().with(
+                words -> announceAndStartGame(words, roundAnnouncementMessage, timePerRound),
+                err -> broadcast(new ChatMessage("FAILED to fetch words. Cannot start game."))
+            );
+        }
+
 
         return List.of(new ChatMessage("Requested a new game."));
+    }
+
+    private void announceAndStartGame(
+        Set<String> words,
+        String roundAnnouncementMessage,
+        int timePerRound
+    ) {
+        broadcast(new ChatMessage(roundAnnouncementMessage));
+
+        gameConfig = new AnagramConfig(timePerRound, 5);
+
+        wordsForRound.addAll(words);
+
+        startRound();
     }
 
     private List<IMessage> handleCorrectAnswer(String name) {

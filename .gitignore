@@ -35,3 +35,6 @@ bin/
 
 # Local environment
 .env
+
+# Offline word banks
+wordbank_id.txt
