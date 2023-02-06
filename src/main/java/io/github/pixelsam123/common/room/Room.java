@@ -1,7 +1,7 @@
-package io.github.pixelsam123.common;
+package io.github.pixelsam123.common.room;
 
 import io.github.pixelsam123.common.message.ChatMessage;
-import io.github.pixelsam123.common.message.IMessage;
+import io.github.pixelsam123.common.message.Message;
 import io.github.pixelsam123.common.message.PongMessage;
 import io.quarkus.logging.Log;
 
@@ -20,7 +20,7 @@ public class Room {
 
     private final RoomConfig config;
     private final Consumer<RoomConfig> onLastUserRemoved;
-    private final IRoomInterceptor interceptor;
+    private final RoomInterceptor interceptor;
 
     /**
      * @param config            Room configuration
@@ -30,7 +30,7 @@ public class Room {
     public Room(
         RoomConfig config,
         Consumer<RoomConfig> onLastUserRemoved,
-        IRoomInterceptor interceptor
+        RoomInterceptor interceptor
     ) {
         this.config = config;
         this.onLastUserRemoved = onLastUserRemoved;
@@ -74,9 +74,9 @@ public class Room {
             return;
         }
 
-        List<IMessage> messages = interceptor.interceptMessage(username, clientMessage);
+        List<Message> messages = interceptor.interceptMessage(username, clientMessage);
         if (messages != null) {
-            for (IMessage message : messages) {
+            for (Message message : messages) {
                 sendMessage(session, message);
             }
             return;
@@ -85,7 +85,7 @@ public class Room {
         broadcast(new ChatMessage(username + ": " + clientMessage));
     }
 
-    public void broadcast(IMessage message) {
+    public void broadcast(Message message) {
         for (Session session : sessionToUsername.keySet()) {
             sendMessage(session, message);
         }
@@ -103,15 +103,15 @@ public class Room {
 
         sessionToUsername.put(session, username);
 
-        List<IMessage> messages = interceptor.interceptAfterUsernameAdded(username);
-        for (IMessage message : messages) {
+        List<Message> messages = interceptor.interceptAfterUsernameAdded(username);
+        for (Message message : messages) {
             sendMessage(session, message);
         }
 
         broadcast(new ChatMessage(username + " joined!"));
     }
 
-    private void sendMessage(Session session, IMessage message) {
+    private void sendMessage(Session session, Message message) {
         session.getAsyncRemote().sendObject(message, result -> {
             Throwable error = result.getException();
             if (error != null) {

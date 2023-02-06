@@ -1,9 +1,9 @@
 package io.github.pixelsam123.anagram.message;
 
-import io.github.pixelsam123.common.message.IMessage;
+import io.github.pixelsam123.common.message.Message;
 import org.jetbrains.annotations.Nullable;
 
-public class FinishedGame implements IMessage {
+public class FinishedGameMessage implements Message {
 
     @Override
     public String getType() {
@@ -17,7 +17,7 @@ public class FinishedGame implements IMessage {
 
     @Override
     public String toString() {
-        return "FinishedGame{}";
+        return "FinishedGameMessage{}";
     }
 
 }

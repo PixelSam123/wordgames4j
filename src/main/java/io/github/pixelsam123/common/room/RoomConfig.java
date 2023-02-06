@@ -1,4 +1,4 @@
-package io.github.pixelsam123.common;
+package io.github.pixelsam123.common.room;
 
 public class RoomConfig {
 

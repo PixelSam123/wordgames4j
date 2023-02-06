@@ -1,24 +1,24 @@
 package io.github.pixelsam123.anagram.message;
 
-import io.github.pixelsam123.common.message.IMessage;
+import io.github.pixelsam123.common.message.Message;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
-public class OngoingRoundInfo implements IMessage {
+public class FinishedRoundMessage implements Message {
 
     private final Map<String, String> content;
 
-    public OngoingRoundInfo(String wordToGuess, String roundFinishTime) {
+    public FinishedRoundMessage(String wordAnswer, String toNextRoundTime) {
         content = Map.ofEntries(
-            Map.entry("word_to_guess", wordToGuess),
-            Map.entry("round_finish_time", roundFinishTime)
+            Map.entry("word_answer", wordAnswer),
+            Map.entry("to_next_round_time", toNextRoundTime)
         );
     }
 
     @Override
     public String getType() {
-        return "OngoingRoundInfo";
+        return "FinishedRoundInfo";
     }
 
     @Override
@@ -28,7 +28,7 @@ public class OngoingRoundInfo implements IMessage {
 
     @Override
     public String toString() {
-        return "OngoingRoundInfo{" + "content=" + content + '}';
+        return "FinishedRoundMessage{" + "content=" + content + '}';
     }
 
 }

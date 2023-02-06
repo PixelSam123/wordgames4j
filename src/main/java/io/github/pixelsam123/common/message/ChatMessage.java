@@ -2,7 +2,7 @@ package io.github.pixelsam123.common.message;
 
 import org.jetbrains.annotations.Nullable;
 
-public class ChatMessage implements IMessage {
+public class ChatMessage implements Message {
 
     private final String content;
 

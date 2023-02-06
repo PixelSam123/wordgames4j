@@ -1,17 +1,17 @@
-package io.github.pixelsam123.common;
+package io.github.pixelsam123.common.room;
 
-import io.github.pixelsam123.common.message.IMessage;
+import io.github.pixelsam123.common.message.Message;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public interface IRoomInterceptor {
+public interface RoomInterceptor {
 
     /**
      * @param username Username of the user that has just successfully registered
      * @return Private messages to send before this user is announced as having joined the room.
      */
-    List<IMessage> interceptAfterUsernameAdded(String username);
+    List<Message> interceptAfterUsernameAdded(String username);
 
     void interceptAfterUsernameRemoved(String username);
 
@@ -21,6 +21,6 @@ public interface IRoomInterceptor {
      * @return Intercepted message. If this isn't null, the normal broadcast chat message
      * will be replaced by private messages to the user that sent this message.
      */
-    @Nullable List<IMessage> interceptMessage(String username, String clientMessage);
+    @Nullable List<Message> interceptMessage(String username, String clientMessage);
 
 }

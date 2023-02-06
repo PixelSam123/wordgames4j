@@ -91,10 +91,13 @@ public class AnagramWsEndpointTest {
                 new SimpleEntry<>("type", "ChatMessage"),
                 new SimpleEntry<>(
                     "content",
-                    "1 rounds started with time per round of 5 seconds! Word length: 4"
+                    """
+                        1 rounds started with time per round of 5 seconds!
+                        Word length: 4
+                        Is Indonesian: false"""
                 )
             );
-            remote.sendText("/start 4 1 5");
+            remote.sendText("/start 4 1 5 false");
 
             assertEquals(
                 announcesRoundStart,

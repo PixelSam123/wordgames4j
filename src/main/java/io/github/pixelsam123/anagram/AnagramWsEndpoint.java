@@ -1,7 +1,9 @@
 package io.github.pixelsam123.anagram;
 
-import io.github.pixelsam123.common.*;
 import io.github.pixelsam123.RandomWordService;
+import io.github.pixelsam123.common.json.JsonEncoder;
+import io.github.pixelsam123.common.room.Room;
+import io.github.pixelsam123.common.room.RoomConfig;
 import io.quarkus.logging.Log;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 

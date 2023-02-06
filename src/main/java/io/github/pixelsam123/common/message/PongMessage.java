@@ -2,7 +2,7 @@ package io.github.pixelsam123.common.message;
 
 import org.jetbrains.annotations.Nullable;
 
-public class PongMessage implements IMessage {
+public class PongMessage implements Message {
 
     @Override
     public String getType() {
