@@ -15,6 +15,7 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -113,30 +114,15 @@ public class AnagramRoom implements RoomInterceptor {
         AnagramGameConfig gameConfig = AnagramGameConfig.parseFromGameStartCommand(command);
 
         if (gameConfig.isIndonesian) {
-            Uni.createFrom().item(Unchecked.supplier(() -> {
-                try (Scanner wordBank = new Scanner(new File("wordbank_id.txt"))) {
-                    List<String> wordsOfRequestedLength = new ArrayList<>();
-                    while (wordBank.hasNextLine()) {
-                        String word = wordBank.nextLine();
-                        if (word.length() == gameConfig.wordLength) {
-                            wordsOfRequestedLength.add(word);
-                        }
-                    }
-
-                    List<String> wordPool = new ArrayList<>();
-                    while (wordPool.size() < gameConfig.roundCount) {
-                        int randomIdx = ThreadLocalRandom
-                            .current()
-                            .nextInt(0, wordsOfRequestedLength.size());
-                        wordPool.add(wordsOfRequestedLength.get(randomIdx));
-                    }
-
-                    return Set.copyOf(wordPool);
-                }
-            })).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()).subscribe().with(
-                words -> announceAndStartGame(words, gameConfig),
-                err -> broadcast(new ChatMessage("FAILED to read word bank. Cannot start game."))
-            );
+            Uni
+                .createFrom()
+                .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(gameConfig)))
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .subscribe()
+                .with(
+                    words -> announceAndStartGame(words, gameConfig),
+                    err -> broadcast(new ChatMessage("FAILED to read word bank. Cannot start game."))
+                );
         } else {
             randomWordService
                 .getWordsOfLength(gameConfig.roundCount, gameConfig.wordLength)
@@ -147,8 +133,31 @@ public class AnagramRoom implements RoomInterceptor {
                 );
         }
 
-
         return List.of(new ChatMessage("Requested a new game."));
+    }
+
+    private Set<String> getWordPoolFromOfflineWordBank(
+        AnagramGameConfig gameConfig
+    ) throws FileNotFoundException {
+        try (Scanner wordBank = new Scanner(new File("wordbank_id.txt"))) {
+            List<String> wordsOfRequestedLength = new ArrayList<>();
+            while (wordBank.hasNextLine()) {
+                String word = wordBank.nextLine();
+                if (word.length() == gameConfig.wordLength) {
+                    wordsOfRequestedLength.add(word);
+                }
+            }
+
+            List<String> wordPool = new ArrayList<>();
+            while (wordPool.size() < gameConfig.roundCount) {
+                int randomIdx = ThreadLocalRandom
+                    .current()
+                    .nextInt(0, wordsOfRequestedLength.size());
+                wordPool.add(wordsOfRequestedLength.get(randomIdx));
+            }
+
+            return Set.copyOf(wordPool);
+        }
     }
 
     private void announceAndStartGame(
