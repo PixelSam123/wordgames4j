@@ -102,8 +102,7 @@ public class AnagramRoom implements RoomInterceptor {
             Start a new round. Time per round is in seconds.
                         
             /skip
-            Skip your turn in a round.
-            """.trim()));
+            Skip your turn in a round."""));
     }
 
     private List<Message> handleListCommand() {
