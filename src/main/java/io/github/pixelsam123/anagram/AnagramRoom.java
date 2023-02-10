@@ -14,8 +14,8 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.impl.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -137,25 +137,32 @@ public class AnagramRoom implements RoomInterceptor {
 
     private Set<String> getWordPoolFromOfflineWordBank(
         AnagramGameConfig gameConfig
-    ) throws FileNotFoundException {
-        try (Scanner wordBank = new Scanner(new File("wordbank_id.txt"))) {
-            List<String> wordsOfRequestedLength = new ArrayList<>();
-            while (wordBank.hasNextLine()) {
-                String word = wordBank.nextLine();
-                if (word.length() == gameConfig.wordLength) {
-                    wordsOfRequestedLength.add(word);
+    ) throws IOException {
+        try (InputStream wordBankFile = Thread
+            .currentThread()
+            .getContextClassLoader()
+            .getResourceAsStream("wordbank_id.txt")) {
+            assert wordBankFile != null;
+
+            try (Scanner wordBank = new Scanner(wordBankFile)) {
+                List<String> wordsOfRequestedLength = new ArrayList<>();
+                while (wordBank.hasNextLine()) {
+                    String word = wordBank.nextLine();
+                    if (word.length() == gameConfig.wordLength) {
+                        wordsOfRequestedLength.add(word);
+                    }
                 }
-            }
 
-            List<String> wordPool = new ArrayList<>();
-            while (wordPool.size() < gameConfig.roundCount) {
-                int randomIdx = ThreadLocalRandom
-                    .current()
-                    .nextInt(0, wordsOfRequestedLength.size());
-                wordPool.add(wordsOfRequestedLength.get(randomIdx));
-            }
+                List<String> wordPool = new ArrayList<>();
+                while (wordPool.size() < gameConfig.roundCount) {
+                    int randomIdx = ThreadLocalRandom
+                        .current()
+                        .nextInt(0, wordsOfRequestedLength.size());
+                    wordPool.add(wordsOfRequestedLength.get(randomIdx));
+                }
 
-            return Set.copyOf(wordPool);
+                return Set.copyOf(wordPool);
+            }
         }
     }
 
