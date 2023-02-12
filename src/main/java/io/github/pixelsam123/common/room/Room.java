@@ -9,7 +9,6 @@ import javax.websocket.Session;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 public class Room {
 
@@ -19,7 +18,7 @@ public class Room {
     private final Map<Session, String> sessionToUsername = new ConcurrentHashMap<>();
 
     private final RoomConfig config;
-    private final Consumer<RoomConfig> onLastUserRemoved;
+    private final Runnable onLastUserRemoved;
     private final RoomInterceptor interceptor;
 
     /**
@@ -29,7 +28,7 @@ public class Room {
      */
     public Room(
         RoomConfig config,
-        Consumer<RoomConfig> onLastUserRemoved,
+        Runnable onLastUserRemoved,
         RoomInterceptor interceptor
     ) {
         this.config = config;
@@ -53,7 +52,7 @@ public class Room {
         }
 
         if (sessionToUsername.isEmpty()) {
-            onLastUserRemoved.accept(config);
+            onLastUserRemoved.run();
         }
     }
 

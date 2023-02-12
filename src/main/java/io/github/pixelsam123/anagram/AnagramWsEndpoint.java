@@ -2,6 +2,7 @@ package io.github.pixelsam123.anagram;
 
 import io.github.pixelsam123.RandomWordService;
 import io.github.pixelsam123.common.json.JsonEncoder;
+import io.github.pixelsam123.common.message.Message;
 import io.github.pixelsam123.common.room.Room;
 import io.github.pixelsam123.common.room.RoomConfig;
 import io.quarkus.logging.Log;
@@ -30,11 +31,11 @@ public class AnagramWsEndpoint {
     public void onOpen(Session session, @PathParam("roomId") String roomId) {
         Room room = idToRoom.computeIfAbsent(roomId, key -> new Room(
             new RoomConfig(roomId, 20),
-            config -> {
-                Log.info("ROOM " + config.identifier + " destroyed!");
-                idToRoom.remove(roomId);
-            },
-            new AnagramRoom(randomWordService, message -> idToRoom.get(roomId).broadcast(message))
+            () -> destroyRoomOnLastUserRemoved(roomId),
+            new AnagramRoom(
+                randomWordService,
+                message -> broadcastMessageToRoomOnRequest(roomId, message)
+            )
         ));
 
         room.addUser(session);
@@ -57,6 +58,15 @@ public class AnagramWsEndpoint {
         @PathParam("roomId") String roomId
     ) {
         idToRoom.get(roomId).receiveMessage(session, clientMessage);
+    }
+
+    private void destroyRoomOnLastUserRemoved(String roomId) {
+        Log.info("ROOM " + roomId + " destroyed!");
+        idToRoom.remove(roomId);
+    }
+
+    private void broadcastMessageToRoomOnRequest(String roomId, Message message) {
+        idToRoom.get(roomId).broadcast(message);
     }
 
 }
