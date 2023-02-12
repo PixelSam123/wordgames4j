@@ -75,9 +75,13 @@ public class AnagramRoom implements RoomInterceptor {
         if (clientMessage.matches("/list")) {
             return handleListCommand();
         }
-        if (roundEndTimeoutHandle == null
-            && clientMessage.matches("/start \\d+ \\d+ \\d+ (true|false)")) {
-            return handleGameStartCommand(clientMessage);
+        if (roundEndTimeoutHandle == null) {
+            if (clientMessage.matches("/start \\d+ \\d+ \\d+ (true|false)")) {
+                return handleGameStartCommand(clientMessage);
+            }
+            if (clientMessage.matches("/start")) {
+                return handleGameStartCommandDefault();
+            }
         }
         if (clientMessage.toLowerCase().equals(currentWord)) {
             return handleAnswer(username, false);
@@ -94,13 +98,16 @@ public class AnagramRoom implements RoomInterceptor {
             Commands:
             /help
             Show this message
-                        
+            
             /list
             List the players in a room
-                        
+            
+            /start
+            Start a new game with default settings.
+            
             /start {wordLength} {roundCount} {timePerRound} {isIndonesian:boolean}
-            Start a new round. Time per round is in seconds.
-                        
+            Start a new game with custom settings. Time per round is in seconds.
+            
             /skip
             Skip your turn in a round."""));
     }
@@ -119,6 +126,12 @@ public class AnagramRoom implements RoomInterceptor {
         }
 
         return List.of(new ChatMessage("Requested a new game."));
+    }
+
+    private List<Message> handleGameStartCommandDefault() {
+        handleGameStartCommand("/start 5 10 30 true");
+
+        return List.of(new ChatMessage("Requested a new game with default settings!"));
     }
 
     private void startGameWithOfflineWordBank(AnagramGameConfig gameConfig) {
