@@ -315,6 +315,7 @@ public class AnagramRoom implements RoomInterceptor {
         return nameToPlayerInfo
             .entrySet()
             .stream()
+            .sorted((a, b) -> b.getValue().points - a.getValue().points)
             .map(entry -> entry.getKey() + " -> " + entry.getValue().points)
             .collect(Collectors.joining("\n"));
     }
