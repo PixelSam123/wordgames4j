@@ -19,6 +19,11 @@ Random word API at https://random-word-api.herokuapp.com
     - [ ] Word length configuration
     - [ ] Timer configuration
 
+## Frontends
+
+- [PixelSam123/wordgames-client](https://github.com/PixelSam123/wordgames-client)
+- [pixelsam123.github.io/minigames](https://pixelsam123.github.io/minigames)
+
 ## Spinning it up
 
 Instructions to run available from Quarkus' README below.
