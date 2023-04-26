@@ -29,14 +29,17 @@ public class AnagramWsEndpoint {
 
     @OnOpen
     public void onOpen(Session session, @PathParam("roomId") String roomId) {
-        Room room = idToRoom.computeIfAbsent(roomId, key -> new Room(
-            new RoomConfig(roomId, 20),
-            () -> destroyRoomOnLastUserRemoved(roomId),
-            new AnagramRoom(
-                randomWordService,
-                message -> broadcastMessageToRoomOnRequest(roomId, message)
+        Room room = idToRoom.computeIfAbsent(
+            roomId,
+            key -> new Room(
+                new RoomConfig(roomId, 20),
+                () -> destroyRoomOnLastUserRemoved(roomId),
+                new AnagramRoom(
+                    randomWordService,
+                    message -> broadcastMessageToRoomOnRequest(roomId, message)
+                )
             )
-        ));
+        );
 
         room.addUser(session);
     }
@@ -53,9 +56,7 @@ public class AnagramWsEndpoint {
 
     @OnMessage
     public void onMessage(
-        Session session,
-        String clientMessage,
-        @PathParam("roomId") String roomId
+        Session session, String clientMessage, @PathParam("roomId") String roomId
     ) {
         idToRoom.get(roomId).receiveMessage(session, clientMessage);
     }

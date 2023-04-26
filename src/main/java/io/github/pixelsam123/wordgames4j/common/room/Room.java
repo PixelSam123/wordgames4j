@@ -27,9 +27,7 @@ public class Room {
      * @param interceptor       Intercept user addition and removal plus messages with this
      */
     public Room(
-        RoomConfig config,
-        Runnable onLastUserRemoved,
-        RoomInterceptor interceptor
+        RoomConfig config, Runnable onLastUserRemoved, RoomInterceptor interceptor
     ) {
         this.config = config;
         this.onLastUserRemoved = onLastUserRemoved;

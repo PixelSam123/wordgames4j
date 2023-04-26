@@ -41,8 +41,7 @@ public class AnagramRoom implements RoomInterceptor {
     private final Consumer<Message> onBroadcastRequest;
 
     public AnagramRoom(
-        RandomWordService randomWordService,
-        Consumer<Message> onBroadcastRequest
+        RandomWordService randomWordService, Consumer<Message> onBroadcastRequest
     ) {
         this.randomWordService = randomWordService;
         this.onBroadcastRequest = onBroadcastRequest;
@@ -154,9 +153,7 @@ public class AnagramRoom implements RoomInterceptor {
         Set<String> wordPool = new HashSet<>();
 
         while (wordPool.size() < gameConfig.roundCount) {
-            int randomIdx = ThreadLocalRandom
-                .current()
-                .nextInt(0, wordsOfRequestedLength.size());
+            int randomIdx = ThreadLocalRandom.current().nextInt(0, wordsOfRequestedLength.size());
             wordPool.add(wordsOfRequestedLength.get(randomIdx));
         }
 
@@ -164,10 +161,12 @@ public class AnagramRoom implements RoomInterceptor {
     }
 
     private List<String> getWordsOfLengthFromWordBank(int length) throws IOException {
-        try (InputStream resource = Thread
-            .currentThread()
-            .getContextClassLoader()
-            .getResourceAsStream("wordbank_id.txt")) {
+        try (
+            InputStream resource = Thread
+                .currentThread()
+                .getContextClassLoader()
+                .getResourceAsStream("wordbank_id.txt")
+        ) {
             assert resource != null;
 
             try (Scanner wordBank = new Scanner(resource)) {
@@ -196,8 +195,7 @@ public class AnagramRoom implements RoomInterceptor {
     }
 
     private void announceAndStartGame(
-        Set<String> words,
-        AnagramGameConfig gameConfig
+        Set<String> words, AnagramGameConfig gameConfig
     ) {
         broadcast(new ChatMessage(gameConfig.generateAnnouncementMessage()));
 
@@ -227,8 +225,8 @@ public class AnagramRoom implements RoomInterceptor {
         }
 
         return List.of(new ChatMessage(
-            "You are #" + currentRoundAnswerers.size() + "/" + nameToPlayerInfo.size()
-                + " to " + (isSkip ? "skip" : "answer") + " this round."
+            "You are #" + currentRoundAnswerers.size() + "/" + nameToPlayerInfo.size() + " to " +
+                (isSkip ? "skip" : "answer") + " this round."
         ));
     }
 
@@ -275,15 +273,12 @@ public class AnagramRoom implements RoomInterceptor {
             .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
             .toString();
 
-        OffsetDateTime roundFinishTime = OffsetDateTime
-            .now()
-            .plusSeconds(gameConfig.secondsPerRound);
+        OffsetDateTime roundFinishTime =
+            OffsetDateTime.now().plusSeconds(gameConfig.secondsPerRound);
         broadcast(new OngoingRoundMessage(shuffledWord, roundFinishTime.toString()));
 
-        roundEndTimeoutHandle = setTimeout(
-            this::endCurrentRound,
-            Duration.ofSeconds(gameConfig.secondsPerRound)
-        );
+        roundEndTimeoutHandle =
+            setTimeout(this::endCurrentRound, Duration.ofSeconds(gameConfig.secondsPerRound));
     }
 
     private void endCurrentRound() {
@@ -292,9 +287,8 @@ public class AnagramRoom implements RoomInterceptor {
             return;
         }
 
-        OffsetDateTime nextRoundStartTime = OffsetDateTime
-            .now()
-            .plusSeconds(gameConfig.secondsPerRoundEnding);
+        OffsetDateTime nextRoundStartTime =
+            OffsetDateTime.now().plusSeconds(gameConfig.secondsPerRoundEnding);
 
         broadcast(new ChatMessage(
             "Points:\n" + nameToPointsTable() + "\n" + (wordsForRound.size() - 1)
