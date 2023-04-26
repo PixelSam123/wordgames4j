@@ -1,10 +1,10 @@
 package io.github.pixelsam123.wordgames4j.anagram;
 
-import io.github.pixelsam123.wordgames4j.common.room.Room;
-import io.github.pixelsam123.wordgames4j.common.room.RoomConfig;
 import io.github.pixelsam123.wordgames4j.RandomWordService;
 import io.github.pixelsam123.wordgames4j.common.json.JsonEncoder;
 import io.github.pixelsam123.wordgames4j.common.message.Message;
+import io.github.pixelsam123.wordgames4j.common.room.Room;
+import io.github.pixelsam123.wordgames4j.common.room.RoomConfig;
 import io.quarkus.logging.Log;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
