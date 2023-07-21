@@ -5,7 +5,7 @@ import io.github.pixelsam123.wordgames4j.common.message.Message;
 import io.github.pixelsam123.wordgames4j.common.message.PongMessage;
 import io.quarkus.logging.Log;
 
-import javax.websocket.Session;
+import jakarta.websocket.Session;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
