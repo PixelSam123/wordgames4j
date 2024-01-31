@@ -40,6 +40,10 @@ public class AnagramGameConfig {
         );
     }
 
+    public static AnagramGameConfig experimentalGameConfig() {
+        return new AnagramGameConfig(-1, 10, 30, 5, false);
+    }
+
     public String generateAnnouncementMessage() {
         return roundCount + " rounds started with time per round of " + secondsPerRound
             + " seconds!\nWord length: " + wordLength + "\nIs Indonesian: " + isIndonesian;

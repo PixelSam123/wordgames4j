@@ -81,6 +81,9 @@ public class AnagramRoom implements RoomInterceptor {
             if (clientMessage.matches("/start")) {
                 return handleGameStartCommandDefault();
             }
+            if (clientMessage.matches("/start-experimental")) {
+                return handleGameStartExperimentalCommand();
+            }
         }
         if (clientMessage.toLowerCase().equals(currentWord)) {
             return handleAnswer(username, false);
@@ -106,6 +109,9 @@ public class AnagramRoom implements RoomInterceptor {
             
             /start {wordLength} {roundCount} {timePerRound} {isIndonesian:boolean}
             Start a new game with custom settings. Time per round is in seconds.
+                        
+            /start-experimental
+            Experimental new gamemode with word length ignored. Still being tested!
             
             /skip
             Skip your turn in a round."""));
@@ -133,10 +139,33 @@ public class AnagramRoom implements RoomInterceptor {
         return List.of(new ChatMessage("Requested a new game with default settings!"));
     }
 
+    private List<Message> handleGameStartExperimentalCommand() {
+        startGameWithExperimentalWordBank();
+
+        return List.of(new ChatMessage("Requested a new game in the experimental gamemode!"));
+    }
+
+    private void startGameWithExperimentalWordBank() {
+        AnagramGameConfig gameConfig = AnagramGameConfig.experimentalGameConfig();
+
+        Uni
+            .createFrom()
+            .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(gameConfig, "hoyo.txt")))
+            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+            .subscribe()
+            .with(
+                words -> announceAndStartGame(words, gameConfig),
+                err -> broadcast(new ChatMessage("FAILED to read word bank. Cannot start game."))
+            );
+    }
+
     private void startGameWithOfflineWordBank(AnagramGameConfig gameConfig) {
         Uni
             .createFrom()
-            .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(gameConfig)))
+            .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(
+                gameConfig,
+                "wordbank_id.txt"
+            )))
             .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
             .subscribe()
             .with(
@@ -146,9 +175,11 @@ public class AnagramRoom implements RoomInterceptor {
     }
 
     private Set<String> getWordPoolFromOfflineWordBank(
-        AnagramGameConfig gameConfig
+        AnagramGameConfig gameConfig,
+        String filename
     ) throws IOException {
-        List<String> wordsOfRequestedLength = getWordsOfLengthFromWordBank(gameConfig.wordLength);
+        List<String> wordsOfRequestedLength =
+            getWordsOfLengthFromWordBank(gameConfig.wordLength, filename);
 
         Set<String> wordPool = new HashSet<>();
 
@@ -160,12 +191,13 @@ public class AnagramRoom implements RoomInterceptor {
         return wordPool;
     }
 
-    private List<String> getWordsOfLengthFromWordBank(int length) throws IOException {
+    private List<String> getWordsOfLengthFromWordBank(int length, String filename)
+        throws IOException {
         try (
             InputStream resource = Thread
                 .currentThread()
                 .getContextClassLoader()
-                .getResourceAsStream("wordbank_id.txt")
+                .getResourceAsStream(filename)
         ) {
             assert resource != null;
 
@@ -174,7 +206,7 @@ public class AnagramRoom implements RoomInterceptor {
 
                 while (wordBank.hasNextLine()) {
                     String word = wordBank.nextLine();
-                    if (word.length() == length) {
+                    if (length == -1 || word.length() == length) {
                         wordsOfRequestedLength.add(word);
                     }
                 }
@@ -262,8 +294,19 @@ public class AnagramRoom implements RoomInterceptor {
             return;
         }
 
+        String shuffledWord = getShuffledWord(currentWord);
+
+        OffsetDateTime roundFinishTime =
+            OffsetDateTime.now().plusSeconds(gameConfig.secondsPerRound);
+        broadcast(new OngoingRoundMessage(shuffledWord, roundFinishTime.toString()));
+
+        roundEndTimeoutHandle =
+            setTimeout(this::endCurrentRound, Duration.ofSeconds(gameConfig.secondsPerRound));
+    }
+
+    private String getShuffledWord(String word) {
         List<Character> shuffledChars = new ArrayList<>();
-        for (char character : currentWord.toCharArray()) {
+        for (char character : word.toCharArray()) {
             shuffledChars.add(character);
         }
         Collections.shuffle(shuffledChars);
@@ -273,12 +316,11 @@ public class AnagramRoom implements RoomInterceptor {
             .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
             .toString();
 
-        OffsetDateTime roundFinishTime =
-            OffsetDateTime.now().plusSeconds(gameConfig.secondsPerRound);
-        broadcast(new OngoingRoundMessage(shuffledWord, roundFinishTime.toString()));
+        if (shuffledWord.equals(word)) {
+            return getShuffledWord(word);
+        }
 
-        roundEndTimeoutHandle =
-            setTimeout(this::endCurrentRound, Duration.ofSeconds(gameConfig.secondsPerRound));
+        return shuffledWord;
     }
 
     private void endCurrentRound() {
