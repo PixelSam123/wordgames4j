@@ -147,7 +147,7 @@ public class AnagramRoom implements RoomInterceptor {
             startGameWithOfflineWordBank(gameConfig);
         }
 
-        return List.of(new ChatMessage("Requested a new game. Settings:\n" + gameConfig));
+        return List.of(new ChatMessage("Requested a new game."));
     }
 
     private void startGameWithOfflineWordBank(AnagramGameConfig gameConfig) {

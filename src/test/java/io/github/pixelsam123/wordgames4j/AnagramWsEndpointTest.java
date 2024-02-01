@@ -61,7 +61,10 @@ public class AnagramWsEndpointTest {
 
             ObjectNode welcomesPlayer = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
-                new SimpleEntry<>("content", "Welcome! Type /help for help")
+                new SimpleEntry<>(
+                    "content",
+                    "Welcome! Type /help for help, or for how to start the game."
+                )
             );
             ObjectNode announcesJoiningPlayer = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
@@ -89,20 +92,28 @@ public class AnagramWsEndpointTest {
                 jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
             );
 
-            ObjectNode announcesRoundStart = constructJson(
+            ObjectNode announcesGameRequest = constructJson(
+                new SimpleEntry<>("type", "ChatMessage"),
+                new SimpleEntry<>("content", "Requested a new game.")
+            );
+            ObjectNode announcesGameStart = constructJson(
                 new SimpleEntry<>("type", "ChatMessage"),
                 new SimpleEntry<>(
                     "content",
                     """
-                        1 rounds started with time per round of 5 seconds!
-                        Word length: 4
-                        Is Indonesian: false"""
+                        5 rounds started with time per round of 20 seconds!
+                        Word length: 5
+                        Dictionary: id"""
                 )
             );
-            remote.sendText("/start 4 1 5 false");
+            remote.sendText("/start id 5 20 5");
 
             assertEquals(
-                announcesRoundStart,
+                announcesGameRequest,
+                jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
+            );
+            assertEquals(
+                announcesGameStart,
                 jsonMapper.readTree(messages.poll(10, TimeUnit.SECONDS))
             );
         }
