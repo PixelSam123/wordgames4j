@@ -1,8 +1,9 @@
 # wordgames4j
 
-Alternative implementation for wordgames, a word games server for WebSockets
+~~Alternative~~ implementation for wordgames, a word games server for WebSockets  
+I'm aware that this is basically my primary implementation now. The Rust server will be re-explored later.
 
-## Why another server implementation?
+## Why move this server to Java?
 
 - Not feeling like finishing the Rust implementation until I wrap my head around async Rust
 - Benchmarking interests (even more alternative implementations in even more languages coming soon?)
@@ -13,16 +14,16 @@ Random word API at https://random-word-api.herokuapp.com
 
 ## List of games
 
-1. `ws/anagram` Normal anagrams game. Plans:
-  - [ ] Multiple language support
-  - [ ] Time configuration
-  - [ ] Word length configuration
-  - [ ] Timer configuration
+1. `ws/anagram` Normal anagrams game. Features:
+  - [x] Multiple language support
+  - [x] Time configuration
+  - [x] Word length configuration
+  - [x] Timer configuration
 
-## Frontends
+## How to play?
 
-- [PixelSam123/wordgames-client](https://github.com/PixelSam123/wordgames-client)
-- [pixelsam123.github.io/minigames](https://pixelsam123.github.io/minigames)
+Connect to `wss://your-server-address/ws/anagram/{room ID}` and type `/help`!  
+Room ID can be any string.
 
 ## Frontends
 
