@@ -235,7 +235,7 @@ public class AnagramRoom implements RoomInterceptor {
         }
 
         if (!isSkip) {
-            nameToPlayerInfo.get(name).points += currentRoundAnswerers.size() == 0 ? 2 : 1;
+            nameToPlayerInfo.get(name).points += currentRoundAnswerers.isEmpty() ? 2 : 1;
         }
 
         currentRoundAnswerers.add(name);
@@ -261,7 +261,7 @@ public class AnagramRoom implements RoomInterceptor {
 
         currentRoundAnswerers.clear();
 
-        if (wordsForRound.size() == 0) {
+        if (wordsForRound.isEmpty()) {
             broadcast(new FinishedGameMessage());
             broadcast(new ChatMessage("GAME FINISHED! Final points:\n" + nameToPointsTable()));
             roundEndTimeoutHandle = null;
