@@ -37,6 +37,9 @@ public class AnagramRoom implements RoomInterceptor {
     private final Set<String> currentRoundAnswerers = new ConcurrentHashSet<>();
     private final Set<String> wordsForRound = new ConcurrentHashSet<>();
 
+    private @Nullable String currentShuffledWord = null;
+    private @Nullable OffsetDateTime currentRoundFinishTime = null;
+
     private final RandomWordService randomWordService;
     private final Consumer<Message> onBroadcastRequest;
 
@@ -52,7 +55,15 @@ public class AnagramRoom implements RoomInterceptor {
         nameToPlayerInfo.put(username, new AnagramPlayerInfo());
 
         List<Message> messagesToSend = new ArrayList<>();
-        messagesToSend.add(new ChatMessage("Welcome! Type /help for help"));
+        messagesToSend.add(
+            new ChatMessage("Welcome! Type /help for help, or for how to start the game.")
+        );
+
+        if (currentShuffledWord != null && currentRoundFinishTime != null) {
+            messagesToSend.add(
+                new OngoingRoundMessage(currentShuffledWord, currentRoundFinishTime.toString())
+            );
+        }
 
         return messagesToSend;
     }
@@ -75,14 +86,8 @@ public class AnagramRoom implements RoomInterceptor {
             return handleListCommand();
         }
         if (roundEndTimeoutHandle == null) {
-            if (clientMessage.matches("/start \\d+ \\d+ \\d+ (true|false)")) {
+            if (clientMessage.matches("/start.*")) {
                 return handleGameStartCommand(clientMessage);
-            }
-            if (clientMessage.matches("/start")) {
-                return handleGameStartCommandDefault();
-            }
-            if (clientMessage.matches("/start-experimental")) {
-                return handleGameStartExperimentalCommand();
             }
         }
         if (clientMessage.toLowerCase().equals(currentWord)) {
@@ -107,11 +112,16 @@ public class AnagramRoom implements RoomInterceptor {
             /start
             Start a new game with default settings.
             
-            /start {wordLength} {roundCount} {timePerRound} {isIndonesian:boolean}
+            /start {dictionary}
+            Start a game with default settings, but choose a dictionary.
+            Available options are: id, hygames, en
+                        
+            /start {dictionary} {roundCount} {timePerRound}
             Start a new game with custom settings. Time per round is in seconds.
                         
-            /start-experimental
-            Experimental new gamemode with word length ignored. Still being tested!
+            /start {dictionary} {roundCount} {timePerRound} {wordLength}
+            Start a new game with custom settings. Time per round is in seconds.
+            Additionally specify the word length. Ideal for big dictionaries.
             
             /skip
             Skip your turn in a round."""));
@@ -124,39 +134,20 @@ public class AnagramRoom implements RoomInterceptor {
     private List<Message> handleGameStartCommand(String command) {
         AnagramGameConfig gameConfig = AnagramGameConfig.parseFromGameStartCommand(command);
 
-        if (gameConfig.isIndonesian) {
-            startGameWithOfflineWordBank(gameConfig);
-        } else {
-            startGameWithRandomWordService(gameConfig);
+        if (gameConfig.wordLength == 1 || gameConfig.wordLength == 0
+            || gameConfig.wordLength < -1) {
+            return List.of(
+                new ChatMessage("CANNOT start a game with word length of 1, 0, or under -1.")
+            );
         }
 
-        return List.of(new ChatMessage("Requested a new game."));
-    }
+        if (gameConfig.dictionary.equals("en")) {
+            startGameWithRandomWordService(gameConfig);
+        } else {
+            startGameWithOfflineWordBank(gameConfig);
+        }
 
-    private List<Message> handleGameStartCommandDefault() {
-        handleGameStartCommand("/start 5 10 30 true");
-
-        return List.of(new ChatMessage("Requested a new game with default settings!"));
-    }
-
-    private List<Message> handleGameStartExperimentalCommand() {
-        startGameWithExperimentalWordBank();
-
-        return List.of(new ChatMessage("Requested a new game in the experimental gamemode!"));
-    }
-
-    private void startGameWithExperimentalWordBank() {
-        AnagramGameConfig gameConfig = AnagramGameConfig.experimentalGameConfig();
-
-        Uni
-            .createFrom()
-            .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(gameConfig, "hoyo.txt")))
-            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-            .subscribe()
-            .with(
-                words -> announceAndStartGame(words, gameConfig),
-                err -> broadcast(new ChatMessage("FAILED to read word bank. Cannot start game."))
-            );
+        return List.of(new ChatMessage("Requested a new game. Settings:\n" + gameConfig));
     }
 
     private void startGameWithOfflineWordBank(AnagramGameConfig gameConfig) {
@@ -164,7 +155,7 @@ public class AnagramRoom implements RoomInterceptor {
             .createFrom()
             .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(
                 gameConfig,
-                "wordbank_id.txt"
+                gameConfig.dictionary + ".txt"
             )))
             .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
             .subscribe()
@@ -294,11 +285,10 @@ public class AnagramRoom implements RoomInterceptor {
             return;
         }
 
-        String shuffledWord = getShuffledWord(currentWord);
+        currentShuffledWord = getShuffledWord(currentWord);
 
-        OffsetDateTime roundFinishTime =
-            OffsetDateTime.now().plusSeconds(gameConfig.secondsPerRound);
-        broadcast(new OngoingRoundMessage(shuffledWord, roundFinishTime.toString()));
+        currentRoundFinishTime = OffsetDateTime.now().plusSeconds(gameConfig.secondsPerRound);
+        broadcast(new OngoingRoundMessage(currentShuffledWord, currentRoundFinishTime.toString()));
 
         roundEndTimeoutHandle =
             setTimeout(this::endCurrentRound, Duration.ofSeconds(gameConfig.secondsPerRound));
@@ -343,6 +333,8 @@ public class AnagramRoom implements RoomInterceptor {
         }
 
         currentWord = null;
+        currentShuffledWord = null;
+        currentRoundFinishTime = null;
 
         setTimeout(this::startRound, Duration.ofSeconds(gameConfig.secondsPerRoundEnding));
     }

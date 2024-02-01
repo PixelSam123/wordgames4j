@@ -2,62 +2,60 @@ package io.github.pixelsam123.wordgames4j.anagram;
 
 public class AnagramGameConfig {
 
-    public final int wordLength;
+    public final String dictionary;
     public final int roundCount;
     public final int secondsPerRound;
     public final int secondsPerRoundEnding;
-    public final boolean isIndonesian;
+    public final int wordLength;
 
     private AnagramGameConfig(
-        int wordLength,
+        String dictionary,
         int roundCount,
         int secondsPerRound,
         int secondsPerRoundEnding,
-        boolean isIndonesian
+        int wordLength
     ) {
-        this.wordLength = wordLength;
+        this.dictionary = dictionary;
         this.roundCount = roundCount;
         this.secondsPerRound = secondsPerRound;
         this.secondsPerRoundEnding = secondsPerRoundEnding;
-        this.isIndonesian = isIndonesian;
+        this.wordLength = wordLength;
     }
 
     public static AnagramGameConfig parseFromGameStartCommand(String gameStartCommand) {
-        String[] commandParts = gameStartCommand.split(" ");
+        String[] commandParts = gameStartCommand.split(" +");
 
-        int wordLength = Integer.parseInt(commandParts[1]);
-        int roundCount = Integer.parseInt(commandParts[2]);
-        int secondsPerRound = Integer.parseInt(commandParts[3]);
+        String dictionary = commandParts.length > 1 ? commandParts[1] : "id";
+        int roundCount = commandParts.length > 2 ? Integer.parseInt(commandParts[2]) : 10;
+        int secondsPerRound = commandParts.length > 3 ? Integer.parseInt(commandParts[3]) : 20;
         int secondsPerRoundEnding = 5;
-        boolean isIndonesian = Boolean.parseBoolean(commandParts[4]);
+        int wordLength = commandParts.length > 4
+            ? Integer.parseInt(commandParts[4])
+            : dictionary.equals("hygames") ? -1 : 5;
 
         return new AnagramGameConfig(
-            wordLength,
+            dictionary,
             roundCount,
             secondsPerRound,
             secondsPerRoundEnding,
-            isIndonesian
+            wordLength
         );
-    }
-
-    public static AnagramGameConfig experimentalGameConfig() {
-        return new AnagramGameConfig(-1, 10, 30, 5, false);
     }
 
     public String generateAnnouncementMessage() {
         return roundCount + " rounds started with time per round of " + secondsPerRound
-            + " seconds!\nWord length: " + wordLength + "\nIs Indonesian: " + isIndonesian;
+            + " seconds!\nWord length: " + wordLength + "\nDictionary: " + dictionary;
     }
 
     @Override
     public String toString() {
-        return "AnagramGameConfig{"
-            + "wordLength=" + wordLength
-            + ", roundCount=" + roundCount
-            + ", secondsPerRound=" + secondsPerRound
-            + ", secondsPerRoundEnding=" + secondsPerRoundEnding
-            + ", isIndonesian=" + isIndonesian
-            + '}';
+        return "AnagramGameConfig{" +
+            "dictionary='" + dictionary + '\'' +
+            ", roundCount=" + roundCount +
+            ", secondsPerRound=" + secondsPerRound +
+            ", secondsPerRoundEnding=" + secondsPerRoundEnding +
+            ", wordLength=" + wordLength +
+            '}';
     }
 
 }
