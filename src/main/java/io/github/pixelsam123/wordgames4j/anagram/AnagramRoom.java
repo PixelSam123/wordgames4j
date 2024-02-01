@@ -235,7 +235,7 @@ public class AnagramRoom implements RoomInterceptor {
         }
 
         if (!isSkip) {
-            nameToPlayerInfo.get(name).points += currentRoundAnswerers.isEmpty() ? 2 : 1;
+            nameToPlayerInfo.get(name).points += currentRoundAnswerers.isEmpty() ? 3 : 2;
         }
 
         currentRoundAnswerers.add(name);
