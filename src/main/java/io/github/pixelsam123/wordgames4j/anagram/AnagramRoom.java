@@ -114,11 +114,11 @@ public class AnagramRoom implements RoomInterceptor {
             
             /start {dictionary}
             Start a game with default settings, but choose a dictionary.
-            Available options are: id, hygames, en
-                        
+            Available options are: en, id, hoyo, gi, hsr, js-topic
+            
             /start {dictionary} {roundCount} {timePerRound}
             Start a new game with custom settings. Time per round is in seconds.
-                        
+            
             /start {dictionary} {roundCount} {timePerRound} {wordLength}
             Start a new game with custom settings. Time per round is in seconds.
             Additionally specify the word length. Ideal for big dictionaries.
@@ -155,7 +155,7 @@ public class AnagramRoom implements RoomInterceptor {
             .createFrom()
             .item(Unchecked.supplier(() -> getWordPoolFromOfflineWordBank(
                 gameConfig,
-                gameConfig.dictionary + ".txt"
+                "wordbanks/" + gameConfig.dictionary + ".txt"
             )))
             .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
             .subscribe()

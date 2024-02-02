@@ -31,7 +31,10 @@ public class AnagramGameConfig {
         int secondsPerRoundEnding = 5;
         int wordLength = commandParts.length > 4
             ? Integer.parseInt(commandParts[4])
-            : dictionary.equals("hygames") ? -1 : 5;
+            : dictionary.equals("gi") || dictionary.equals("hoyo") || dictionary.equals("hsr")
+                || dictionary.equals("js-topic")
+                ? -1
+                : 5;
 
         return new AnagramGameConfig(
             dictionary,
